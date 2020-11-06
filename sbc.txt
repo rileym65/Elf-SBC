@@ -1,0 +1,108 @@
+SX n    00-07     Stack Exchange
+NO      08        No Operation
+LB      09 nn     Push literal byte onto stack
+LN      0A nnnn   Push literal number onto stack
+DS      0B        Duplicate top 2 stack entries
+SP      0C        Pop top 2 stack values
+IN      0D        Inp()
+PE      0E        Peek
+PO      0F        Poke
+IO      10        Out
+FG      11        Flg()
+FV      12        Fetch variable
+SV      13        Store variable
+DE      14        DPEEK
+DO      15        DPOKE
+PL      16        PLOT
+NE      17        Negate
+AD      18        Add
+SU      19        Subtract
+MP      1A        Multiply
+DV      1B        divide
+CP      1C        Compare
+TS      1D        Table sub
+TJ      1E        Table jump
+PN      20        Print number
+PT      22        Print Tab
+NL      23        New Line
+PC      24        Print literal string
+AN      25        And
+OR      26        Or
+GL      27        Get input line
+XR      28        Xor
+CL      2A        cls
+WS      2D        Exit to Elf/OS
+US      2E        Machine language subroutine call
+RT      2F        IL subroutine return
+JS      3000-7FFF JumpSub
+J       8000-FFFF Jump
+
+
+expression evaluation:
+
+Level 1 (base level)
+1. Check for negative sign
+   a. call level 2 to get value
+   b. output NE code
+   c. jump to step 4
+2. check for positive sign
+   a. ignore it
+3. call level 2 to get value
+4. check for &
+   a. call level 2 to get value
+   b. output AN code
+   c. jump to step 4
+5. check for |
+   a. call level 2 to get value
+   b. output OR code
+   c. jump to step 4
+6. check for ^
+   a. call level 2 to get value
+   b. output XR code
+   c. jump to step 4
+7. return, end of evaluation
+
+Level 2 (check for + and -)
+1. Call level 3 to get value
+2. check for +
+   a. call level 3 to get value
+   b. output AD code
+   c. jump to step 2
+3. check for -
+   a. call level 3 to get value
+   b. output SU code
+   c. jump to step 2
+4. return from level 2
+
+Level 3 (check for *, /)
+1. Call level 4 to get value
+2. check for *
+   a. call level 4 to get value
+   b. output MP code
+   c. jump to step 2
+3. check for /
+   a. call level 4 to get vlaue
+   b. output DV code
+   c. jump to step 2
+4. return from level 3
+
+Level 4 (check for variables, functions, subexprs, numbers)
+1. check for functions
+   a. evaluate function
+   b. return from level 4
+2. check for variables
+   a. retrieve value
+   b. return from level 4
+3. check for numbers
+   a. convert to binary
+   b. return from level 4
+4. check for (
+   a. call level 1 as new expression evaluation
+   b. check for ), if not exist then error
+5. ERROR, should stop evaluation
+
+   
+ hex??
+USR(2000)     Restart
+USR(2106)     Input
+USR(2109)     Output
