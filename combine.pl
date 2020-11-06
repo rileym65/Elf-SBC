@@ -38,7 +38,7 @@ for ($i=0; $i<=$count; $i++) {
   if ($i != $count) {
     $head =~ s/ 00 *$//;
     }
-  else {
+  if ($first == 1) {
     $head =~ s/^c0 .. .. //;
     }
   $first = 1;

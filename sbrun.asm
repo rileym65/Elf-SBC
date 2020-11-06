@@ -6,9 +6,6 @@
 ; *** without express written permission from the author.         ***
 ; *******************************************************************
 
-; #define BIT32
-#define BIT16
-
 ; RA = instruction table
 ; RB = Basic data
 ; RC = TBC Proram counter
@@ -21,6 +18,15 @@ org:       equ     2000h
 
            org     8000h
            lbr     0ff00h
+#ifdef BIT32
+           db      'SBRUN32',0
+           dw      0c000h
+           dw      endrom+0c000h-org
+           dw      org
+           dw      endrom-org
+           dw      org
+           db      0
+#else
            db      'SBRUN',0
            dw      0a000h
            dw      endrom+0a000h-org
@@ -28,6 +34,7 @@ org:       equ     2000h
            dw      endrom-org
            dw      org
            db      0
+#endif
 
            org     2000h
            lbr     start

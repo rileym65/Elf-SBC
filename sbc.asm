@@ -564,10 +564,9 @@ numisdec:  push    r7
 numcont:   ldi     TKN_NUM             ; get token for number
            str     r9                  ; place into token stream
            inc     r9 
-           ldi     low size            ; point to size
-           plo     rb
-           ldn     rb                  ; get size
-           lbz     num16               ; jump if 16 bits
+           sep     scall               ; check for 32 bits
+           dw      is32bit
+           lbnf    num16               ; jump if 16 bits
            ghi     r7                  ; write high word
            str     r9
            inc     r9
@@ -760,7 +759,12 @@ process:   lda     r9                  ; get first token from stream
            ldi     ERR_DIRECT          ; indicate direct command error
            smi     0                   ; set DF
            sep     sret                ; and return
-process_1: ldi     low linenum         ; point to current line number
+process_1: sep     scall               ; check for 32 bits
+           dw      is32bit
+           lbnf    proc1               ; jump if not
+           inc     r9                  ; move past first 16 bits
+           inc     r9
+proc1:     ldi     low linenum         ; point to current line number
            plo     rb
            lda     r9                  ; get msb of line number
            str     rb
@@ -986,7 +990,11 @@ input_1:   lda     r9                  ; get next token
            plo     re                  ; and store
 input_3:   glo     re                  ; get variable
            shl                         ; multiply by 2
-           stxd                        ; save for a momen
+           sep     scall               ; see if 32 bits
+           dw      is32bit
+           lbnf    input_3a            ; jump if not
+           shl                         ; multiply by 4
+input_3a:  stxd                        ; save for a momen
            ldi     OP_LB               ; need to load a byte
            sep     scall               ; output it
            dw      output
@@ -1091,7 +1099,11 @@ let_2:     glo     re                  ; get variable
            irx                         ; recover variable
            ldx
            shl                         ; multiply by 2
-           sep     scall               ; and output it
+           sep     scall               ; check for 32 bits
+           dw      is32bit
+           lbnf    let_3               ; jump if not
+           shl                         ; multiply address by 4
+let_3:     sep     scall               ; and output it
            dw      output
 let_lp:    lda     r9                  ; get byte from variable name
            xri     0ffh                ; see if terminator
@@ -1420,7 +1432,16 @@ expr_l4:   ldn     r9                  ; get token
            lda     r9                  ; get lsb of number
            sep     scall               ; and output it
            dw      output
-           adi     0                   ; signal no error
+           sep     scall               ; check for 32 bits
+           dw      is32bit
+           lbnf    expr_l4a            ; jump if not
+           lda     r9                  ; write lsw
+           sep     scall
+           dw      output
+           lda     r9
+           sep     scall
+           dw      output
+expr_l4a:  adi     0                   ; signal no error
            sep     sret                ; return to caller
 ; ************************************
 ; *** Not a number, try a variable ***
@@ -1438,7 +1459,11 @@ expr_4_1:  ldn     r9                  ; get token
            plo     re                  ; save it
 expr_4_1a: glo     re                  ; get name
            shl                         ; multiply by 2
-           stxd                        ; save for a moment
+           sep     scall               ; check for 32 bites
+           dw      is32bit
+           lbnf    expr_4_1c           ; jump if not
+           shl                         ; multiply by 4
+expr_4_1c: stxd                        ; save for a moment
            ldi     OP_LB               ; signal load byte operator
            sep     scall               ; output it
            dw      output
@@ -1737,6 +1762,22 @@ lineoutgo: lda     r7                  ; copy byte from table to output
            dw      output
            lbr     lineoutlp           ; loop until end of table
 
+is32bit:   stxd                        ; save D
+           glo     rb
+           str     r2
+           ldi     low size            ; point to size
+           plo     rb
+           ldn     rb                  ; get size
+           lbz     is32bitn            ; jump if not 32 bits
+           ldi     1                   ; signal 32 bits
+is32bitgo: shr                         ; shift into df
+           ldxa                        ; recover rb.0
+           plo     rb
+           ldx                         ; recover D
+           sep     sret                ; and return
+is32bitn:  ldi     0                   ; signal 16 bits
+           lbr     is32bitgo
+           
 ; **********************************
 ; ***** Convert ascii to int32 *****
 ; ***** RF - buffer to ascii   *****
