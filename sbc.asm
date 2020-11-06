@@ -83,6 +83,7 @@ compjumps: db      0
 dolist:    db      0
 errors:    dw      0
 errhalt:   db      0
+size:      db      0
 
 
 start:     ldi     high ifname         ; point to input filename area
@@ -98,6 +99,10 @@ start:     ldi     high ifname         ; point to input filename area
            ldi     low dolist          ; set listing off
            plo     rb
            ldi     0
+           str     rb
+           ldi     low size            ; set 16-bits
+           plo     rb
+           ldi     0                   ; 0=16-bits
            str     rb
            ldi     low errhalt         ; set no halt on errors
            plo     rb
@@ -137,7 +142,19 @@ not_l:     dec     ra                  ; get character again
            ldi     1                   ; signal listing enabled
            str     rb
            lbr     noargs              ; jump to skip whitespace
-not_h:     nop
+not_h:     dec     ra                  ; get character again
+           lda     ra
+           smi     '3'                 ; check for 32 bits
+           lbnz    not_32              ; jump if not
+           lda     ra                  ; get next character
+           smi     '2'                 ; must be 2 for 32 bits
+           lbnz    not_32              ; jump if not
+           ldi     low size            ; point to size variable
+           plo     rb
+           ldi     32                  ; indicate 32 bits
+           str     rb
+           lbr     noargs              ; jump to skip whitespace
+not_32:    nop
 noargs:    lda     ra                  ; get next cahr
            lbz     nothing             ; jump if no filename found
            smi     32                  ; check for space
@@ -237,8 +254,14 @@ opened:    sep     scall               ; print message
            ldi     'S'                 ; write header
            sep     scall
            dw      output_1
-           ldi     16
-           sep     scall
+           ldi     low size            ; need size 
+           plo     rb
+           ldn     rb                  ; get ti
+           lbz     sz16                ; jump if 16 bits
+           ldi     32                  ; signal 32 bits
+           lbr     szgo
+sz16:      ldi     16                  ; signal 16 bits
+szgo:      sep     scall
            dw      output_1
 ; **************************************************
 ; *** Now re-open input file to process 2nd pass ***
@@ -534,17 +557,31 @@ tokennum:  lbz     numisdec            ; jump if decimal number
            sep     scall               ; convert hex number
            dw      f_hexin
            lbr     numcont             ; continue processing number
-numisdec:  sep     scall               ; convert number
-           dw      f_atoi
+numisdec:  push    r7
+           push    r8
+           sep     scall               ; convert number
+           dw      atoi
 numcont:   ldi     TKN_NUM             ; get token for number
            str     r9                  ; place into token stream
            inc     r9 
-           ghi     rd                  ; now write number
+           ldi     low size            ; point to size
+           plo     rb
+           ldn     rb                  ; get size
+           lbz     num16               ; jump if 16 bits
+           ghi     r7                  ; write high word
            str     r9
            inc     r9
-           glo     rd                  ; and low byte
+           glo     r7
            str     r9
            inc     r9
+num16:     ghi     r8                  ; now write number
+           str     r9
+           inc     r9
+           glo     r8                  ; and low byte
+           str     r9
+           inc     r9
+           pop     r8
+           pop     r7
            lbr     tokenlp             ; loop back for more tokens
 tokenfunc: glo     rd                  ; get token number
            ori     080h                ; set high bit
@@ -1699,6 +1736,116 @@ lineoutgo: lda     r7                  ; copy byte from table to output
            sep     scall
            dw      output
            lbr     lineoutlp           ; loop until end of table
+
+; **********************************
+; ***** Convert ascii to int32 *****
+; ***** RF - buffer to ascii   *****
+; ***** Returns R7:R8 result   *****
+; ***** Uses: RA - digits msb  *****
+; *****       R9 - counters    *****
+; **********************************
+atoi:      push    ra           ; save consumed registers
+           push    rb
+           push    r9
+           mov     r7,r2        ; keep the last position for moment
+           ldi     10           ; need 10 work bytes on the stack
+           plo     re
+atoi1:     ldi     0            ; put a zero on the stack
+           stxd
+           dec     re           ; decrement count
+           glo     re           ; see if done
+           lbnz    atoi1        ; loop until done
+           ldi     0            ; need to get count of characters
+           plo     re
+atoi2:     ldn     rf           ; get character from RF
+           smi     '0'          ; see if below digits
+           lbnf    atoi3        ; jump if not valid digit
+           ldn     rf           ; recover byte
+           smi     '9'+1        ; check if above digits
+           lbdf    atoi3        ; jump if not valid digit
+           inc     rf           ; point to next character
+           inc     re           ; increment count
+           lbr     atoi2        ; loop until non character found
+atoi3:     mov     rb,rf
+           glo     re           ; were any valid digits found
+           lbnz    atoi4        ; jump if so
+           mov     rb,rf
+           ldi     0            ; otherwise result is zero
+           plo     r7
+           phi     r7
+           plo     r8
+           phi     r8
+atoidn:    glo     r2           ; clear work bytes off stack
+           adi     10
+           plo     r2
+           ghi     r2
+           adci    0
+           phi     r2
+           mov     rf,rb        ; recover ending position
+           pop     r9           ; recover consumed registers
+           pop     rb
+           pop     ra
+           sep     sret         ; and return to caller
+atoi4:     dec     rf           ; move back to last valid character
+           ldn     rf           ; get digit
+           smi     030h         ; convert to binary
+           str     r7           ; store into work space
+           dec     r7
+           dec     re           ; decrement count
+           glo     re           ; see if done
+           lbnz    atoi4        ; loop until all digits copied
+           ldi     0            ; need to clear result
+           plo     r7
+           phi     r7
+           plo     r8
+           phi     r8
+           ldi     32           ; 32 bits to process
+           plo     r9
+atoi5:     ldi     10           ; need to shift 10 cells
+           plo     re
+           mov     ra,r2        ; point to msb
+           inc     ra
+           ldi     0            ; clear carry bit
+           shr
+atoi6:     ldn     ra           ; get next cell
+           lbnf    atoi6a       ; Jump if no need to set a bit
+           ori     16           ; set the incoming bit
+atoi6a:    shr                  ; shift cell right
+           str     ra           ; store new cell value
+           inc     ra           ; move to next cell
+           dec     re           ; decrement cell count
+           glo     re           ; see if done
+           lbnz    atoi6        ; loop until all cells shifted
+           ghi     r7           ; shift remaining bit into answer
+           shrc
+           phi     r7
+           glo     r7
+           shrc
+           plo     r7
+           ghi     r8
+           shrc
+           phi     r8
+           glo     r8
+           shrc
+           plo     r8
+           ldi     10           ; need to check 10 cells
+           plo     re
+           mov     ra,r2        ; point ra to msb
+           inc     ra
+atoi7:     ldn     ra           ; get cell value
+           ani     8            ; see if bit 3 is set
+           lbz     atoi7a       ; jump if not
+           ldn     ra           ; recover value
+           smi     3            ; minus 3
+           str     ra           ; put it back
+atoi7a:    inc     ra           ; point to next cell
+           dec     re           ; decrement cell count
+           glo     re           ; see if done
+           lbnz    atoi7        ; loop back if not
+           dec     r9           ; decrement bit count
+           glo     r9           ; see if done
+           lbnz    atoi5        ; loop back if more bits
+           lbr     atoidn       ; otherwise done
 
 
 
