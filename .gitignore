@@ -1,4 +1,6 @@
 bios.inc
 date.inc
 kernel.inc
-
+*.prg
+*.lst
+*.rom
