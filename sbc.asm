@@ -121,8 +121,8 @@ start:     ldi     high ifname         ; point to input filename area
            str     rb
            inc     rb
            str     rb
-           ldn     ra                  ; see if first char is a switch
-arg_lp:    smi     '-'                 ; switches are minus sign
+arg_lp:    ldn     ra                  ; see if first char is a switch
+           smi     '-'                 ; switches are minus sign
            lbnz    fnamelp             ; jump if not
            inc     ra                  ; increment to switch
            lda     ra                  ; get switch character
