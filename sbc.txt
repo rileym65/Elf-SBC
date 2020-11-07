@@ -31,6 +31,8 @@ OR      26        Or
 GL      27        Get input line
 XR      28        Xor
 CL      2A        cls
+RN      2B        RND
+FR      2C        Fre
 WS      2D        Exit to Elf/OS
 US      2E        Machine language subroutine call
 RT      2F        IL subroutine return

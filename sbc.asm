@@ -55,6 +55,7 @@ OP_GL:     equ     027h
 OP_XR:     equ     028h
 OP_CL:     equ     02ah
 OP_RN:     equ     02bh
+OP_FR:     equ     02ch
 OP_WS:     equ     02dh
 OP_US:     equ     02eh
 OP_RT:     equ     02fh
@@ -1096,6 +1097,7 @@ c_let:     lda     r9                  ; get token following LET
            smi     32                  ; convert to UC
            plo     re
 let_2:     glo     re                  ; get variable
+           smi     040h                ; remove bias
            stxd                        ; save it
            ldi     OP_LB               ; need to load byte to stack
            sep     scall               ; output it
@@ -1107,7 +1109,8 @@ let_2:     glo     re                  ; get variable
            dw      is32bit
            lbnf    let_3               ; jump if not
            shl                         ; multiply address by 4
-let_3:     sep     scall               ; and output it
+let_3:     adi     080h                ; put bias back in
+           sep     scall               ; and output it
            dw      output
 let_lp:    lda     r9                  ; get byte from variable name
            xri     0ffh                ; see if terminator
@@ -1170,10 +1173,20 @@ jumpcont:  plo     r7                  ; save it
            lbnz    c_cgoto             ; try computed jump
            inc     r9                  ; move to following token
            inc     r9
-           ldn     r9                  ; retrieve it
+           sep     scall               ; check for 32 bit
+           dw      is32bit
+           lbnf    c_goto_2            ; jump if not
+           inc     r9
+           inc     r9
+c_goto_2:  ldn     r9                  ; retrieve it
            dec     r9                  ; move pointer back
            dec     r9
-           lbz     c_goto_g            ; jump if line terminator
+           sep     scall               ; check for 32 bit
+           dw      is32bit
+           lbnf    c_goto_3
+           dec     r9
+           dec     r9
+c_goto_3:  lbz     c_goto_g            ; jump if line terminator
            smi     37+80h              ; check for colon
            lbz     c_goto_g            ; jump if so
            lbr     c_cgoto             ; treat as computed goto
@@ -1189,12 +1202,24 @@ c_goto_g:  ldi     low pass            ; need to check pass
            dw      output
            inc     r9                  ; move past line number
            inc     r9
+           sep     scall               ; check for 32 bits
+           dw      is32bit
+           lbnf    c_goto_dn
+           inc     r9
+           inc     r9
 c_goto_dn: lbr     stmtend
 c_goto_1:  lda     r9                  ; retrieve line number
            phi     rf
            lda     r9
            plo     rf
-           glo     r7                  ; save opcode
+           sep     scall               ; check for 32 bit
+           dw      is32bit
+           lbnf    c_goto_4            ; jump if not
+           lda     r9                  ; retrieve actual line number
+           phi     rf
+           lda     r9
+           plo     rf
+c_goto_4:  glo     r7                  ; save opcode
            stxd
            sep     scall               ; retrieve line address
            dw      findline
@@ -1462,12 +1487,14 @@ expr_4_1:  ldn     r9                  ; get token
            smi     32                  ; convert to UC
            plo     re                  ; save it
 expr_4_1a: glo     re                  ; get name
+           smi     040h                ; subtract bias
            shl                         ; multiply by 2
            sep     scall               ; check for 32 bites
            dw      is32bit
            lbnf    expr_4_1c           ; jump if not
            shl                         ; multiply by 4
-expr_4_1c: stxd                        ; save for a moment
+expr_4_1c: adi     080h                ; add bias back
+           stxd                        ; save for a moment
            ldi     OP_LB               ; signal load byte operator
            sep     scall               ; output it
            dw      output
@@ -1621,25 +1648,7 @@ f_fre:     inc     r9                  ; move past FRE token
            lda     r9                  ; get next token
            smi     085h                ; must be a )
            lbnz    expr_err            ; otherwise error
-           ldi     OP_LB               ; output bytes to implement FRE
-           sep     scall
-           dw      output
-           ldi     34
-           sep     scall
-           dw      output
-           ldi     OP_FV
-           sep     scall
-           dw      output
-           ldi     OP_LB
-           sep     scall
-           dw      output
-           ldi     36
-           sep     scall
-           dw      output
-           ldi     OP_FV
-           sep     scall
-           dw      output
-           ldi     OP_SU
+           ldi     OP_FR               ; output bytes to implement FRE
            sep     scall
            dw      output
            adi     0                   ; signal good

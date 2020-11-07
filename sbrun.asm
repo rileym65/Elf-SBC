@@ -1850,8 +1850,17 @@ op_pl:     inc     rd                  ; retrieve y value from stack
            lda     rd
            plo     rf
            lda     rd
+#ifdef BIT32
+           lda     rd
+           lda     rd
+#endif
            lda     rd                  ; get x value from stack
+          
            phi     rf
+#ifdef BIT32
+           lda     rd
+           lda     rd
+#endif
            push    rd                  ; save basic stack
            mov     rd,rf               ; move coordinates
            sep     scall               ; position cursor
@@ -1898,6 +1907,10 @@ op_tj:     mov     r7,program+1        ; point to jump table
            plo     r8
            ldn     rd                  ; get msb
            phi     r8                  ; r8 now has line number
+#ifdef BIT32
+           inc     rd                  ; remove high word
+           inc     rd
+#endif
 op_tjlp:   lda     r7                  ; get table line msb
            smi     0ffh                ; check for end of table
            lbnz    op_tj1              ; jump if not
@@ -1937,6 +1950,10 @@ op_ts:     inc     rd                  ; get line number from stack
            plo     r8
            ldn     rd
            phi     r8
+#ifdef BIT32
+           inc     rd                  ; remove high word
+           inc     rd
+#endif
            ghi     rc                  ; push current pc
            str     rd
            dec     rd
@@ -1945,6 +1962,37 @@ op_ts:     inc     rd                  ; get line number from stack
            dec     rd
            mov     r7,program+1        ; point to jump table
            lbr     op_tjlp             ; and find address for jump
+
+op_fr:     ldi     022h              ; point to end of memory pointer
+           plo     rb
+#ifdef BIT32
+           ldi     0                 ; msw is zeroes
+           str     rd
+           dec     rd
+           str     rd
+           dec     rd
+#endif
+           lda     rb                ; retrieve pointer
+           phi     rf
+           lda     rb
+           plo     rf
+           inc     rb                ; point to end of free memory start
+           ldn     rb                ; get it
+           str     r2
+           glo     rf                ; get memory end
+           sm                        ; subtract start
+           plo     rf
+           dec     rb
+           ldn     rb
+           str     r2
+           ghi     rf
+           smb
+           str     rd                ; store result on stck
+           dec     rd
+           glo     rf
+           str     rd
+           dec     rd
+           lbr     mainlp            ; then back to main loop
 
 ; *********************************************************
 ; ***** Takes value in D and makes 2 char ascii in RF *****
@@ -2406,7 +2454,7 @@ cmdtab:    dw      op_sx               ; 00  SX 0
            dw      mainlp              ; 29
            dw      op_cl               ; 2a  CL - Cls
            dw      op_rn               ; 2b  RN - Rnd
-           dw      mainlp              ; 2c
+           dw      op_fr               ; 2c  FR - Fre
            dw      op_ws               ; 2d  WS - Return to system
            dw      op_us               ; 2e  US - USR call
            dw      op_rt               ; 2f  RT - Return from IL subroutine
