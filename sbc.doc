@@ -26,7 +26,7 @@ FLG(flag)
 RND(range)
 
 Variables:
-A through Z 16-bit integer variables
+A through Z 16/32-bit integer variables
 
 Notes:
 A space is required after line numbers
@@ -41,8 +41,9 @@ GOTO A*1000.  If A=5 this would jump to 5000.  If the target of a computed
 jump does not exist then an error will be printed and the program will be
 terminated.
 
-TBC [options] filename
+SBC [options] filename
 
+-32  - Produce 32-bit code
 -L   - show program listing
 -H   - halt on errors
 
