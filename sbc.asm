@@ -86,7 +86,11 @@ errhalt:   db      0
 size:      db      0
 
 
-start:     ldi     high ifname         ; point to input filename area
+start:     sep     scall               ; display startup message
+           dw      f_inmsg
+           db      'Small BASIC Compiler v0.1',10,13
+           db      'by Michael H. Riley',10,13,0
+           ldi     high ifname         ; point to input filename area
            phi     rf
            ldi     low ifname
            plo     rf
