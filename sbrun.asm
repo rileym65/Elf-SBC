@@ -616,6 +616,7 @@ scdivd2: glo      rb                ; get shift
          dec      ra
          ldn      ra
          shrc
+         str      ra
 #endif
          inc      rb                ; increment shift
          lbr      scdivd2
