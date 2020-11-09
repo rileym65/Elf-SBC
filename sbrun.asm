@@ -1396,6 +1396,14 @@ op_lb:     lda     rc                  ; retrieve next program byte
            dec     rd                  ; and decrement
            lbr     mainlp              ; back to main loop
 
+op_lw:     lda     rc                  ; read high byte of number
+           str     rd                  ; place on stack
+           dec     rd 
+           lda     rc                  ; get low byte of number
+           str     rd                  ; place on stack
+           dec     rd                  ; and decrement
+           lbr     mainlp              ; back to main loop
+
 op_ln:     lda     rc                  ; read high byte of number
            str     rd                  ; place on stack
            dec     rd 
@@ -2441,7 +2449,7 @@ cmdtab:    dw      op_sx               ; 00  SX 0
            dw      op_cp               ; 1c  CP - Compare
            dw      op_ts               ; 1d  TS - Table gosub
            dw      op_tj               ; 1e  TJ - Table jump
-           dw      mainlp              ; 1f
+           dw      op_lw               ; 1f  LW - Word to stack
            dw      op_pn               ; 20  PN - Print Number
            dw      mainlp              ; 21
            dw      op_pt               ; 22  PT - Print tab

@@ -1,7 +1,7 @@
 SX n    00-07     Stack Exchange
 NO      08        No Operation
-LB      09 nn     Push literal byte onto stack
-LN      0A nnnn   Push literal number onto stack
+LB      09 nn     Push literal byte onto stack (8-bit)
+LN      0A nnnn   Push literal number onto stack (16/32-bit)
 DS      0B        Duplicate top 2 stack entries
 SP      0C        Pop top 2 stack values
 IN      0D        Inp()
@@ -22,6 +22,7 @@ DV      1B        divide
 CP      1C        Compare
 TS      1D        Table sub
 TJ      1E        Table jump
+LW      1F        Push literal word onto stack (16-bit)
 PN      20        Print number
 PT      22        Print Tab
 NL      23        New Line

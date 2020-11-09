@@ -45,6 +45,7 @@ OP_DV:     equ     01bh
 OP_CP:     equ     01ch
 OP_TS:     equ     01dh
 OP_TJ:     equ     01eh
+OP_LW:     equ     01fh
 OP_PN:     equ     020h
 OP_PT:     equ     022h
 OP_NL:     equ     023h
@@ -85,9 +86,16 @@ dolist:    db      0
 errors:    dw      0
 errhalt:   db      0
 size:      db      0
+varbase:   dw      0                   ; Base address for variables.  LSB first
+vars:      dw      0                   ; pointer to variable table. LSB first
 
 
-start:     sep     scall               ; display startup message
+start:     ldi     0ffh                ; place the stack at $7FFF
+           plo     r2
+           ldi     07fh
+           phi     r2
+
+           sep     scall               ; display startup message
            dw      f_inmsg
            db      'Small BASIC Compiler v0.1',10,13
            db      'by Michael H. Riley',10,13,0
@@ -126,6 +134,17 @@ start:     sep     scall               ; display startup message
            str     rb
            inc     rb
            str     rb
+           ldi     low vars            ; point to variable table pointer
+           plo     rb
+           ldi     0ffh                ; put variable table at $7EFF
+           str     rb
+           plo     r7                  ; set r7 to varaible table
+           inc     rb
+           ldi     07eh
+           str     rb
+           phi     r7
+           ldi     0                   ; need to mark end of table
+           str     r7
 arg_lp:    ldn     ra                  ; see if first char is a switch
            smi     '-'                 ; switches are minus sign
            lbnz    fnamelp             ; jump if not
@@ -208,7 +227,7 @@ openerr:   ldi     high fileerr        ; point to error message
            plo     rf
            sep     scall               ; display it
            dw      o_msg
-           sep     sret                ; and return to caller
+           lbr     o_wrmboot           ; and return to caller
 opened:    sep     scall               ; print message
            dw      f_inmsg
            db      'Pass 1.',10,13,0
@@ -271,6 +290,13 @@ szgo:      sep     scall
 ; **************************************************
 ; *** Now re-open input file to process 2nd pass ***
 ; **************************************************
+           ldi     low varbase         ; need var base
+           plo     rb
+           glo     ra                  ; store address
+           str     rb
+           inc     rb
+           ghi     ra
+           str     rb
            sep     scall               ; print message
            dw      f_inmsg
            db      'Pass 2.',10,13,0
@@ -315,9 +341,8 @@ nocomps:   sep     scall               ; invoke a compiler pass
            plo     rd
            sep     scall               ; and close it
            dw      o_close
-           sep     sret                ; and return to caller
+           lbr     o_wrmboot           ; and return to caller
 nogood:    lbr     o_wrmboot
-           sep     sret                ; return to OS
 
 ; **************************************
 ; *** This is the main compiler loop ***
@@ -994,12 +1019,14 @@ input_1:   lda     r9                  ; get next token
            smi     32                  ; convert to uc
            plo     re                  ; and store
 input_3:   glo     re                  ; get variable
+           smi     040h                ; remove bias
            shl                         ; multiply by 2
            sep     scall               ; see if 32 bits
            dw      is32bit
            lbnf    input_3a            ; jump if not
            shl                         ; multiply by 4
-input_3a:  stxd                        ; save for a momen
+input_3a:  adi     080h                ; restore bias
+           stxd                        ; save for a momen
            ldi     OP_LB               ; need to load a byte
            sep     scall               ; output it
            dw      output
@@ -1963,6 +1990,6 @@ dta:       ds      512
 odta:      ds      512
 data:      ds      1
 buffer:    ds      256
-tokens:    ds      256
+tokens:    ds      512
 lines:     ds      1024
 
