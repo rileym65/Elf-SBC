@@ -1011,28 +1011,16 @@ input_c:   lda     r9                  ; get next token
 input_1:   lda     r9                  ; get next token
            smi     TKN_USTR            ; must be unquoted string (variable)
            lbnz    syn_err             ; jump if not
-           ldn     r9                  ; get variable name
-           plo     re                  ; keep a copy
-           smi     'a'                 ; check for lowercase
-           lbnf    input_3             ; jump if already uc
-           ldn     r9                  ; recover variable name
-           smi     32                  ; convert to uc
-           plo     re                  ; and store
-input_3:   glo     re                  ; get variable
-           smi     040h                ; remove bias
-           shl                         ; multiply by 2
-           sep     scall               ; see if 32 bits
-           dw      is32bit
-           lbnf    input_3a            ; jump if not
-           shl                         ; multiply by 4
-input_3a:  adi     080h                ; restore bias
-           stxd                        ; save for a momen
-           ldi     OP_LB               ; need to load a byte
+           ldi     OP_LW               ; function to load a word
            sep     scall               ; output it
            dw      output
-           irx                         ; recover variable name
-           ldx
-           sep     scall               ; and output it
+           sep     scall               ; get variable address
+           dw      getvar
+           ghi     rf                  ; high byte of address
+           sep     scall               ; output it
+           dw      output
+           glo     rf                  ; low byte of address
+           sep     scall               ; output it
            dw      output
            ldi     OP_GL               ; function to get input
            sep     scall               ; output it
@@ -1040,9 +1028,6 @@ input_3a:  adi     080h                ; restore bias
            ldi     OP_SV               ; save into variable
            sep     scall               ; output it
            dw      output
-input_4:   lda     r9                  ; move past rest of variable name
-           xri     0ffh                ; see if terminator
-           lbnz    input_4             ; loop until found
            ldn     r9                  ; get next token
            lbz     stmtend             ; jump if terminator
            smi     37+80h              ; check for colon
@@ -1116,32 +1101,46 @@ if_gt:     ldi     4
 c_let:     lda     r9                  ; get token following LET
            smi     TKN_USTR            ; must be unquoted string (variable)
            lbnz    syn_err             ; otherwise syntax error
-           ldn     r9                  ; get variable name
-           plo     re                  ; keep a copy
-           smi     'a'                 ; see if lowercase
-           lbnf    let_2               ; jump if so
-           ldn     r9                  ; get variable name
-           smi     32                  ; convert to UC
-           plo     re
-let_2:     glo     re                  ; get variable
-           smi     040h                ; remove bias
-           stxd                        ; save it
-           ldi     OP_LB               ; need to load byte to stack
+
+           ldi     OP_LW               ; function to load a word
            sep     scall               ; output it
            dw      output
-           irx                         ; recover variable
-           ldx
-           shl                         ; multiply by 2
-           sep     scall               ; check for 32 bits
-           dw      is32bit
-           lbnf    let_3               ; jump if not
-           shl                         ; multiply address by 4
-let_3:     adi     080h                ; put bias back in
-           sep     scall               ; and output it
+           sep     scall               ; get variable address
+           dw      getvar
+           ghi     rf                  ; high byte of address
+           sep     scall               ; output it
            dw      output
-let_lp:    lda     r9                  ; get byte from variable name
-           xri     0ffh                ; see if terminator
-           lbnz    let_lp              ; loop until terminator found
+           glo     rf                  ; low byte of address
+           sep     scall               ; output it
+           dw      output
+
+;           ldn     r9                  ; get variable name
+;           plo     re                  ; keep a copy
+;           smi     'a'                 ; see if lowercase
+;           lbnf    let_2               ; jump if so
+;           ldn     r9                  ; get variable name
+;           smi     32                  ; convert to UC
+;           plo     re
+;let_2:     glo     re                  ; get variable
+;           smi     040h                ; remove bias
+;           stxd                        ; save it
+;           ldi     OP_LB               ; need to load byte to stack
+;           sep     scall               ; output it
+;           dw      output
+;           irx                         ; recover variable
+;           ldx
+;           shl                         ; multiply by 2
+;           sep     scall               ; check for 32 bits
+;           dw      is32bit
+;           lbnf    let_3               ; jump if not
+;           shl                         ; multiply address by 4
+;let_3:     adi     080h                ; put bias back in
+;           sep     scall               ; and output it
+;           dw      output
+;let_lp:    lda     r9                  ; get byte from variable name
+;           xri     0ffh                ; see if terminator
+;           lbnz    let_lp              ; loop until terminator found
+
            lda     r9                  ; get next token
            smi     086h                ; must be =
            lbnz    syn_err             ; otherwise syntax error
@@ -1506,37 +1505,56 @@ expr_4_1:  ldn     r9                  ; get token
            smi     TKN_USTR            ; look for unquoted string (variable)
            lbnz    expr_4_2            ; jump if not
            inc     r9                  ; move to beginning of name
-           ldn     r9                  ; retrieve varialbe name
-           plo     re                  ; save a coyp
-           smi     'a'                 ; see if lowercase
-           lbnf    expr_4_1a           ; jump if already uppercase
-           glo     re                  ; recover value
-           smi     32                  ; convert to UC
-           plo     re                  ; save it
-expr_4_1a: glo     re                  ; get name
-           smi     040h                ; subtract bias
-           shl                         ; multiply by 2
-           sep     scall               ; check for 32 bites
-           dw      is32bit
-           lbnf    expr_4_1c           ; jump if not
-           shl                         ; multiply by 4
-expr_4_1c: adi     080h                ; add bias back
-           stxd                        ; save for a moment
-           ldi     OP_LB               ; signal load byte operator
+           ldi     OP_LW               ; function to load a word
            sep     scall               ; output it
            dw      output
-           irx                         ; recover variable address
-           ldx
-           sep     scall               ; and output it
+           sep     scall               ; get variable address
+           dw      getvar
+           ghi     rf                  ; high byte of address
+           sep     scall               ; output it
+           dw      output
+           glo     rf                  ; low byte of address
+           sep     scall               ; output it
            dw      output
            ldi     OP_FV               ; then a fetch variable code
            sep     scall               ; output it
            dw      output
-expr_4_1b: lda     r9                  ; get byte from string
-           xri     0ffh                ; look for terminator
-           lbnz    expr_4_1b           ; loop until terminator found
-           adi     0                   ; signal no error
-           sep     sret                ; then return
+           ldi     0                   ; signal no error
+           shr
+           sep     sret                ; then return to caller
+
+;           ldn     r9                  ; retrieve varialbe name
+;           plo     re                  ; save a coyp
+;           smi     'a'                 ; see if lowercase
+;           lbnf    expr_4_1a           ; jump if already uppercase
+;           glo     re                  ; recover value
+;           smi     32                  ; convert to UC
+;           plo     re                  ; save it
+;expr_4_1a: glo     re                  ; get name
+;           smi     040h                ; subtract bias
+;           shl                         ; multiply by 2
+;           sep     scall               ; check for 32 bites
+;           dw      is32bit
+;           lbnf    expr_4_1c           ; jump if not
+;           shl                         ; multiply by 4
+;expr_4_1c: adi     080h                ; add bias back
+;           stxd                        ; save for a moment
+;           ldi     OP_LB               ; signal load byte operator
+;           sep     scall               ; output it
+;           dw      output
+;           irx                         ; recover variable address
+;           ldx
+;           sep     scall               ; and output it
+;           dw      output
+;           ldi     OP_FV               ; then a fetch variable code
+;           sep     scall               ; output it
+;           dw      output
+;expr_4_1b: lda     r9                  ; get byte from string
+;           xri     0ffh                ; look for terminator
+;           lbnz    expr_4_1b           ; loop until terminator found
+;           adi     0                   ; signal no error
+;           sep     sret                ; then return
+
 ; ************************************
 ; *** Not a variable, try sub-expr ***
 ; ************************************
@@ -1928,6 +1946,39 @@ atoi7a:    inc     ra           ; point to next cell
            lbnz    atoi5        ; loop back if more bits
            lbr     atoidn       ; otherwise done
 
+; ********************************************
+; ***** Variable table, builds downwards *****
+; ***** Byte 0 - Type, 0=end of table    *****
+; ***** Byte 1 - size LSB                *****
+; ***** Byte 2 - size MSB                *****
+; ***** Byte 3..n - ASCIIZ variable name *****
+; ********************************************
+; ***************************************************
+; ***** Get address of where variable is stored *****
+; ***** R9 - token stream, pointing at name     *****
+; ***** Returns: RF - variable address          *****
+; *****          R9 - following variable name   *****
+; ***************************************************
+getvar:    ldi     low varbase  ; point to variable base
+           plo     rb
+           lda     r9           ; get variable name
+           smi     040h         ; remove bias
+           shl                  ; 16-bits
+           sep     scall        ; check for 32-bits
+           dw      is32bit
+           lbnf    getvar1      ; jump if not
+           shl                  ; otherwise shift 1 more time
+getvar1:   str     r2           ; store for add
+           lda     rb           ; read lsb of variable base
+           add                  ; and add
+           plo     rf           ; store result
+           ldn     rb           ; get msb of variable base
+           adci    0            ; propagate carry
+           phi     rf           ; rf now has variable address
+getvar2:   lda     r9           ; read bytes until string terminator found
+           xri     0ffh         ; need to check for zero
+           lbnz    getvar2      ; loop until terminator found
+           sep     sret         ; then return to caller
 
 
 functable: db      ('+'+80h)           ; 0

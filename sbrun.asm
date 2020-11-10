@@ -1322,7 +1322,7 @@ opened:    mov     rf,program          ; point to program buffer
            mov     rc,program          ; point to loaded program
            mov     rd,07effh           ; set TBC stack
            mov     rb,07000h           ; basic data
-           ldi     022h                ; location for end of memory
+           ldi     low mend            ; location for end of memory
            plo     rb
            ldi     06fh                ; high byte
            str     rb
@@ -1429,40 +1429,70 @@ op_sv:     inc     rd                  ; point to number on stack
            lda     rd
            plo     r7
            lda     rd
-           phi     r7
+           phi     r7                  ; rf:r7 now has number to store
 #endif
-           ldn     rd                  ; get variable address
-           plo     rb                  ; set into basic pointer
+           ldi     low pstart+1        ; need program start
+           plo     rb
+           ldn     rb                  ; get lsb of end
+           dec     rb                  ; point to msb
+           str     r2                  ; store onto stack
+           lda     rd                  ; get variable address lsb
+           add                         ; add program end
+           plo     r9
+           ldn     rb                  ; get msb of program end
+           str     r2                  ; store for add
+           ldn     rd                  ; get variable address msb
+           adc                         ; add in program end
+           phi     r9                  ; r9 now has variable storage address
 #ifdef BIT32
            ghi     r7
-           str     rb
-           inc     rb
+           str     r9
+           inc     r9
            glo     r7
-           str     rb
-           inc     rb
+           str     r9
+           inc     r9
 #endif
            ghi     rf                  ; store value into variable
-           str     rb
-           inc     rb
+           str     r9
+           inc     r9
            glo     rf                  ; low byte
-           str     rb
+           str     r9
            lbr     mainlp              ; then back to main loop
 
-op_fv:     inc     rd                  ; point to variable number
-           ldn     rd                  ; get variable address
-           plo     rb                  ; rb now points to variable data
-           lda     rb                  ; retrieve msb
+op_fv:     ldi     low pstart          ; need address of program
+           plo     rb
+           lda     rb                  ; fetch address
+           phi     rf
+           lda     rb
+           plo     rf                  ; rf now has variable offset
+           inc     rd
+           lda     rd                  ; get lsb of variable address
+           plo     r7
+           ldn     rd                  ; get msb of variable address
+           phi     r7
+           glo     r7                  ; add together
+           str     r2
+           glo     rf
+           add
+           plo     rf
+           ghi     r7
+           str     r2
+           ghi     rf
+           adc
+           phi     rf                  ; RF now points to variable data
+
+           lda     rf                  ; retrieve msb
            str     rd                  ; place onto satck
            dec     rd
 #ifdef BIT32
-           lda     rb                  ; retrieve msb
+           lda     rf                  ; retrieve msb
            str     rd                  ; place onto satck
            dec     rd
-           lda     rb                  ; retrieve msb
+           lda     rf                  ; retrieve msb
            str     rd                  ; place onto satck
            dec     rd
 #endif
-           ldn     rb                  ; retrieve it
+           ldn     rf                  ; retrieve it
            str     rd                  ; place onto stack
            dec     rd
            lbr     mainlp              ; then back to main loop
@@ -1971,7 +2001,7 @@ op_ts:     inc     rd                  ; get line number from stack
            mov     r7,program+1        ; point to jump table
            lbr     op_tjlp             ; and find address for jump
 
-op_fr:     ldi     022h              ; point to end of memory pointer
+op_fr:     ldi     low mend          ; point to end of memory pointer
            plo     rb
 #ifdef BIT32
            ldi     0                 ; msw is zeroes
@@ -2693,5 +2723,7 @@ program:   equ     base+512
 
            org     7000h
 pstart:    equ     $
+mend:      equ     $+2
+pend:      equ     $+4
 lfsr:      equ     $+026h
 
