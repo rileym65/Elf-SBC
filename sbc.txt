@@ -37,7 +37,7 @@ FR      2C        Fre
 WS      2D        Exit to Elf/OS
 US      2E        Machine language subroutine call
 RT      2F        IL subroutine return
-JS      3000-7FFF JumpSub
+JS      7F        JumpSub
 J       8000-FFFF Jump
 
 

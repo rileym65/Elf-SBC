@@ -60,7 +60,7 @@ OP_FR:     equ     02ch
 OP_WS:     equ     02dh
 OP_US:     equ     02eh
 OP_RT:     equ     02fh
-OP_JS:     equ     030h
+OP_JS:     equ     07fh
 OP_J:      equ     080h
 
 org:       equ     2000h
@@ -1221,7 +1221,13 @@ c_goto_g:  ldi     low pass            ; need to check pass
            plo     rb
            ldn     rb
            lbnz    c_goto_1            ; jump if second pass
-           ldi     0                   ; just output 2 anything bytes
+           glo     r7                  ; get opcode
+           xri     OP_JS               ; is it gosub
+           lbnz    c_goto_g1           ; jump if not
+           ldi     0                   ; gosub is a third byte
+           sep     scall
+           dw      output
+c_goto_g1: ldi     0                   ; just output 2 anything bytes
            sep     scall
            dw      output
            sep     scall
@@ -1251,18 +1257,28 @@ c_goto_4:  glo     r7                  ; save opcode
            dw      findline
            irx                         ; recover opcode
            ldx
-           plo     r7
            lbdf    line_err            ; jump if line was not found
+           smi     OP_JS               ; check for gosub
+           lbz     c_gosub1            ; jump if so
+           ldx                         ; recover opcode
+           plo     r7
            glo     r7                  ; get opcode offset
            str     r2                  ; prepare for add
            ghi     rf                  ; get line address
            add                         ; add in opcode offset
-           sep     scall               ; and output
+c_goto_5:  sep     scall               ; and output
            dw      output
            glo     rf                  ; get low byte of address
            sep     scall               ; and output
            dw      output
            lbr     c_goto_dn           ; process ending
+
+c_gosub1:  ldi     OP_JS               ; code for subroutine
+           sep     scall               ; output it
+           dw      output
+           ghi     rf                  ; msb of jump address
+           lbr     c_goto_5            ; output the rest
+
 c_cgoto:   dec     r9                  ; move back one token
            sep     scall               ; compute line number
            dw      expr
