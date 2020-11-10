@@ -1,0 +1,40 @@
+  Variable names greater than 1 character
+  More than 26 basic variables
+  FOR/NEXT/STEP
+  ON GOTO
+  ON GOSUB
+  RANDOM
+  WHILE/WEND
+  REPEAT/UNTIL
+  Interrupt support
+    INTR
+    ION
+    IOFF
+    IRETURN
+  Arrays
+    DIM
+  Strings
+    LEN
+    LEFT$
+    RIGHT$
+    MID$
+    Concatenation
+    STR$
+    CHR$
+    ASC
+    VAL
+  Data statements
+    DATA
+    READ
+    RESTORE
+  Native code compilation
+  Disk files
+  Floating Point
+    ABS
+    ATN
+    COS
+    EXP
+    INT
+    SIN
+    SQR
+    TAN
