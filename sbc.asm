@@ -1965,9 +1965,8 @@ atoi7a:    inc     ra           ; point to next cell
 ; ********************************************
 ; ***** Variable table, builds downwards *****
 ; ***** Byte 0 - Type, 0=end of table    *****
-; ***** Byte 1 - size LSB                *****
-; ***** Byte 2 - size MSB                *****
-; ***** Byte 3..n - ASCIIZ variable name *****
+; ***** Byte 1 - size                    *****
+; ***** Byte 2..n - ASCIIZ variable name *****
 ; ********************************************
 ; ***************************************************
 ; ***** Get address of where variable is stored *****
@@ -1975,26 +1974,94 @@ atoi7a:    inc     ra           ; point to next cell
 ; ***** Returns: RF - variable address          *****
 ; *****          R9 - following variable name   *****
 ; ***************************************************
-getvar:    ldi     low varbase  ; point to variable base
-           plo     rb
-           lda     r9           ; get variable name
-           smi     040h         ; remove bias
-           shl                  ; 16-bits
-           sep     scall        ; check for 32-bits
-           dw      is32bit
-           lbnf    getvar1      ; jump if not
-           shl                  ; otherwise shift 1 more time
-getvar1:   str     r2           ; store for add
-           lda     rb           ; read lsb of variable base
-           add                  ; and add
-           plo     rf           ; store result
-           ldn     rb           ; get msb of variable base
-           adci    0            ; propagate carry
-           phi     rf           ; rf now has variable address
-getvar2:   lda     r9           ; read bytes until string terminator found
-           xri     0ffh         ; need to check for zero
-           lbnz    getvar2      ; loop until terminator found
-           sep     sret         ; then return to caller
+getvar:     push    r7           ; save consumed registers
+            push    rc
+            ldi     low vars     ; need to point to variable table
+            plo     rb
+            lda     rb           ; retrieve variable table address
+            plo     rf           ; store into rf
+            lda     rb
+            phi     rf           ; rf now points to variable table
+            ldi     0            ; address offset starts at 0
+            plo     rc
+            phi     rc
+getvar1:    ldn     rf           ; get next type
+            lbz     newvar       ; new variable if end of table encountered
+            push    rf           ; save positions
+            push    r9
+            dec     rf           ; now points at size
+            dec     rf           ; now pointing at variable name
+getvar2:    lda     r9           ; get next byte of token stream
+            xri     0ffh         ; is it terminator
+            lbz     getvar3      ; jump if so
+            xri     0ffh         ; restore character
+            str     r2           ; store for comparison
+            ldn     rf           ; get name byte from variable table
+            sm                   ; compare them
+            lbnz    getvarno     ; jump if they are not the same
+            dec     rf           ; move to next name byte
+            lbr     getvar2      ; loop back to continue comparing
+getvar3:    ldn     rf           ; get byte from variable table
+            lbnz    getvarno     ; must be terimanator, or no match
+            pop     r9           ; recover token stream
+            pop     rf           ; recover variable table
+getvar4:    lda     r9           ; find name terminator
+            xri     0ffh
+            lbz     getvardn     ; variable found, so finish up
+            lbr     getvar4
+getvarno:   pop     r9           ; recover token stream
+            pop     rf           ; recover table pointer
+            dec     rf           ; point to size
+            ldn     rf           ; get size
+            dec     rf
+            str     r2           ; store for add
+            glo     rc           ; add variable size to offset
+            add
+            plo     rc
+            ghi     rc
+            adci    0
+            phi     rc
+getvarno1:  ldn     rf           ; get next byte of char name
+            lbz     getvarno2    ; jump if terminator found
+            dec     rf           ; move to next character
+            lbr     getvarno1    ; loop until terminator found
+getvarno2:  dec     rf           ; move below terminator
+            lbr     getvar1      ; loop back to test next entry
+newvar:     ldi     1            ; signal integer variable
+            str     rf           ; store as variable type
+            dec     rf
+            ldi     2            ; integers are 16 bits
+            sep     scall        ; check for 32 bits
+            dw      is32bit
+            lbnf    newvar1      ; jump if not
+            ldi     4            ; integers are 32 bits
+newvar1:    str     rf           ; store size
+            dec     rf
+newvar2:    lda     r9           ; get next byte from variable name
+            xri     0ffh         ; check for terminator
+            lbz     newvard      ; jump if terminator found
+            xri     0ffh         ; restore character
+            str     rf           ; store into table
+            dec     rf
+            lbr     newvar2      ; loop back for next character
+newvard:    str     rf           ; store 0 terminator to table
+            dec     rf           ; need to indicate end of table
+            str     rf
+getvardn:   ldi     low varbase  ; need variable base
+            plo     rb
+            lda     rb           ; get lsb of base
+            str     r2           ; store for add
+            glo     rc           ; get low of offset
+            add                  ; add in variable base
+            plo     rf           ; put into return value
+            lda     rb           ; get msb of base
+            str     r2           ; store for add
+            ghi     rc           ; get high of offset
+            adc                  ; and propagate the carry
+            phi     rf           ; rf now has variable address
+            pop     rc           ; recover consumed registers
+            pop     r7
+            sep     sret         ; and return
 
 
 functable: db      ('+'+80h)           ; 0

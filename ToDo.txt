@@ -1,6 +1,6 @@
 * Gosub to set IL code instead of range
-  Variable names greater than 1 character
-  More than 26 basic variables
+* Variable names greater than 1 character
+* More than 26 basic variables
   FOR/NEXT/STEP
   ON GOTO
   ON GOSUB
