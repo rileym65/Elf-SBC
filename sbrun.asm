@@ -59,6 +59,26 @@ flags3:    bn4     flags4              ; jump if ef4 is zero
            ori     8                   ; signal ef4 set
 flags4:    sep     sret                ; return to caller
 
+; *******************************
+; ***** Interrupt processor *****
+; *******************************
+intrret:   lda     r2                  ; recover rb
+           plo     rb
+           lda     r2                  ; recover D
+           dis                         ; and then return
+intr:      dec     r2
+           sav                         ; save X,P
+           dec     r2
+           str     r2                  ; save D
+           dec     r2
+           glo     rb                  ; save basic pointer
+           str     r2
+           ldi     low intflag         ; point to interrupt flag
+           plo     rb
+           ldi     1                   ; set flag
+           str     rb
+           br      intrret             ; and then return
+
 
 ; *********************************
 ; ***** ADD - TOS = TOS + SOS *****
@@ -1319,9 +1339,21 @@ opened:    mov     rf,program          ; point to program buffer
            sep     scall               ; close the file
            dw      o_close
 
+           ldi     low intr            ; set address of interrupt routine
+           plo     r1
+           ldi     high intr
+           phi     r1
            mov     rc,program          ; point to loaded program
            mov     rd,07effh           ; set TBC stack
            mov     rb,07000h           ; basic data
+           ldi     low intline         ; point to interrupt line
+           plo     rb
+           ldi     0                   ; clear interrupt line
+           str     rb
+           inc     rb
+           str     rb
+           inc     rb                  ; and interrupt flag
+           str     rb
            ldi     low mend            ; location for end of memory
            plo     rb
            ldi     06fh                ; high byte
@@ -1362,7 +1394,28 @@ jtdn:      ghi     rc                  ; write new start offset
            glo     rc
            str     rb
 
-mainlp:    lda     rc                  ; get next command byte
+mainlp:    ldi     low intflag         ; point to interrupt flag
+           plo     rb
+           ldn     rb                  ; get flag
+           lbr     mainlp1             ; jump if not set
+           ldi     0                   ; zero the flag
+           dec     rb                  ; point to intline
+           dec     rb
+           lda     rb                  ; retrieve it
+           phi     rf
+           str     r2                  ; save a copy
+           ldn     rb
+           plo     rf                  ; rf now has interrrupt line
+           or                          ; or with first byte
+           lbz     mainlp1             ; no interrupt if line was never set
+           ghi     rc                  ; save current pc
+           str     rd
+           dec     rd
+           glo     rc
+           str     rd
+           dec     rd
+           mov     rc,rf               ; now jump to interrupt routine
+mainlp1:   lda     rc                  ; get next command byte
            plo     re                  ; save it
            shl                         ; commands addresses are two bytes
            plo     rf                  ; store low offset
@@ -1611,6 +1664,47 @@ op_rt:     inc     rd                  ; recover calling address
            ldn     rd
            phi     rc
            lbr     mainlp              ; and then continue execution
+
+op_ir:     sex     r3                  ; reenable interrupts
+           ret
+           db      023h
+           lbr     op_rt               ; then standard return
+
+op_ie:     sex     r3                  ; setup for RET command
+           ret
+           db      023h
+           lbr     mainlp              ; back to main loop
+
+op_id:     sex     r3                  ; setup for RET command
+           dis
+           db      023h
+           lbr     mainlp              ; back to main loop
+
+op_it:     ldi     pstart.0+1          ; offset to program start
+           plo     rb
+           lda     r9                  ; get line number offset
+           phi     rf
+           lda     r9
+           plo     rf
+           ldn     rb                  ; get lsb of program address
+           str     r2
+           glo     rf                  ; add to line number offset
+           add
+           plo     rf
+           dec     rb
+           ldn     rb                  ; get msb of program address
+           str     r2
+           ghi     rf
+           adc
+           phi     rf                  ; rf now has address of line
+           ldi     low intline         ; address of interrupt line storage
+           plo     rb
+           ghi     rf                  ; store address
+           str     rb
+           inc     rb
+           glo     rf
+           str     rb
+           lbr     mainlp              ; back to main loop
 
 op_ne:     sep     scall               ; call runtime to negate number
            dw      rt_neg
@@ -2496,10 +2590,10 @@ cmdtab:    dw      op_sx               ; 00  SX 0
            dw      op_ws               ; 2d  WS - Return to system
            dw      op_us               ; 2e  US - USR call
            dw      op_rt               ; 2f  RT - Return from IL subroutine
-           dw      mainlp              ; 30
-           dw      mainlp              ; 31
-           dw      mainlp              ; 32
-           dw      mainlp              ; 33
+           dw      op_ie               ; 30  IE - Enable interrupts
+           dw      op_id               ; 31  ID - Disable interrupts
+           dw      op_ir               ; 32  IR - Interrupt return
+           dw      op_it               ; 33  IT - Set interrupt line number
            dw      mainlp              ; 34
            dw      mainlp              ; 35
            dw      mainlp              ; 36
@@ -2725,5 +2819,7 @@ program:   equ     base+512
 pstart:    equ     $
 mend:      equ     $+2
 pend:      equ     $+4
+intline:   equ     $+6
+intflag:   equ     $+7
 lfsr:      equ     $+026h
 

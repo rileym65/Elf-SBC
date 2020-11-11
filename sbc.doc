@@ -15,6 +15,10 @@ USR(addr [,value [,value]])
 OUT port,value
 PLOT x,y
 CLS
+INTR linenum - Set interrupt routine line number
+ION          - Enable interrupts
+IOFF         - Disable interrupts
+IRETURN      - Return from interrupt 
 
 Functions (useable in expressions)
 PEEK(addr)

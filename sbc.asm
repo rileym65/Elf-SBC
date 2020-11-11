@@ -60,6 +60,10 @@ OP_FR:     equ     02ch
 OP_WS:     equ     02dh
 OP_US:     equ     02eh
 OP_RT:     equ     02fh
+OP_IE:     equ     030h
+OP_ID:     equ     031h
+OP_IR:     equ     032h
+OP_IT:     equ     033h
 OP_JS:     equ     07fh
 OP_J:      equ     080h
 
@@ -840,6 +844,14 @@ process_3: lda     r9                  ; get next token
            lbz     c_plot
            smi     1                   ; check for CLS
            lbz     c_cls
+           smi     1                   ; check for ION
+           lbz     c_ion
+           smi     1                   ; check for IOFF
+           lbz     c_ioff
+           smi     1                   ; check for IRETURN
+           lbz     c_ireturn
+           smi     1                   ; check for INTR
+           lbz     c_intr
 
            dec     r9                  ; retrieve base token
            lda     r9
@@ -980,6 +992,77 @@ c_usr:     dec     r9                  ; prepare for later increment
            sep     scall               ; output it
            dw      output
            lbr     stmtend             ; good compiler
+
+; *****************************
+; *** Process INTR statment ***
+; *****************************
+c_intr:    lda     r9                  ; get next token
+           smi     TKN_NUM             ; must be a number
+           lbnz    syn_err             ; jump if not a number
+           inc     r9                  ; move to following token
+           inc     r9
+           sep     scall               ; check for 32 bit
+           dw      is32bit
+           lbnf    c_intr_2            ; jump if not
+           inc     r9
+           inc     r9
+c_intr_2:  ldn     r9                  ; retrieve it
+           dec     r9                  ; move pointer back
+           dec     r9
+           sep     scall               ; check for 32 bit
+           dw      is32bit
+           lbnf    c_intr_3
+           dec     r9
+           dec     r9
+c_intr_3:  lbz     c_intr_g            ; jump if line terminator
+           smi     37+80h              ; check for colon
+           lbz     c_intr_g            ; jump if so
+           lbr     syn_err             ; otherwise error
+c_intr_g:  ldi     low pass            ; need to check pass
+           plo     rb
+           ldn     rb
+           lbnz    c_intr_1            ; jump if second pass
+           ldi     0                   ; just output 3 anything bytes
+           sep     scall
+           dw      output
+           sep     scall
+           dw      output
+           sep     scall
+           dw      output
+           inc     r9                  ; move past line number
+           inc     r9
+           sep     scall               ; check for 32 bits
+           dw      is32bit
+           lbnf    c_intr_dn
+           inc     r9
+           inc     r9
+c_intr_dn: lbr     stmtend
+c_intr_1:  lda     r9                  ; retrieve line number
+           phi     rf
+           lda     r9
+           plo     rf
+           sep     scall               ; check for 32 bit
+           dw      is32bit
+           lbnf    c_intr_4            ; jump if not
+           lda     r9                  ; retrieve actual line number
+           phi     rf
+           lda     r9
+           plo     rf
+c_intr_4:  sep     scall               ; retrieve line address
+           dw      findline
+           lbdf    line_err            ; jump if line was not found
+           ldi     OP_IT               ; code for setting interrupt
+           sep     scall               ; output it
+           dw      output
+           ghi     rf                  ; get line address
+           sep     scall               ; and output
+           dw      output
+           glo     rf                  ; get low byte of address
+           sep     scall               ; and output
+           dw      output
+           lbr     c_intr_dn           ; process ending
+
+
 
 ; ******************************
 ; *** Process INPUT statment ***
@@ -1158,9 +1241,23 @@ c_let:     lda     r9                  ; get token following LET
 c_cls:     ldi     OP_CL               ; get opcode for cls
            sep     scall               ; and output it
            dw      output
-           lda     r9                  ; get next token
-           lbnz    syn_err             ; syntax error if not terminator
-           lbr     good                ; return as good command
+           lbr     stmtend             ; done with statement
+
+; *****************************
+; *** Process ION statement ***
+; *****************************
+c_ion:     ldi     OP_IE               ; get opcode to enable interrupts
+           sep     scall               ; and output it
+           dw      output
+           lbr     stmtend             ; done with statement
+
+; *****************************
+; *** Process ION statement ***
+; *****************************
+c_ioff:    ldi     OP_ID               ; get opcode to disable interrupts
+           sep     scall               ; and output it
+           dw      output
+           lbr     stmtend             ; done with statement
 
 ; *****************************
 ; *** Process END statement ***
@@ -1177,6 +1274,16 @@ good:      adi     0                   ; signal good
 ; *** Process RETURN statement ***
 ; ********************************
 c_return:  ldi     OP_RT               ; get opcode for return
+           sep     scall               ; and output it
+           dw      output
+           lda     r9                  ; get next token
+           lbnz    syn_err             ; syntax error if not terminator
+           lbr     good                ; return as good command
+
+; *********************************
+; *** Process IRETURN statement ***
+; *********************************
+c_ireturn: ldi     OP_IR               ; get opcode for return
            sep     scall               ; and output it
            dw      output
            lda     r9                  ; get next token
@@ -2104,6 +2211,10 @@ functable: db      ('+'+80h)           ; 0
            db      (':'+80h)           ; 37
            db      'PLO',('T'+80h)     ; 38
            db      'CL',('S'+80h)      ; 39
+           db      'IO',('N'+80h)      ; 40
+           db      'IOF',('F'+80h)     ; 41
+           db      'IRETUR',('N'+80h)  ; 42
+           db      'INT',('R'+80h)     ; 43
            db      0
 
 rtable1:   db      0ah,80h,80h,12h,0Ah,09h,29h,1Ah,0Ah

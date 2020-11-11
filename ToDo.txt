@@ -8,10 +8,10 @@
   WHILE/WEND
   REPEAT/UNTIL
   Interrupt support
-    INTR
-    ION
-    IOFF
-    IRETURN
+*   INTR
+*   ION
+*   IOFF
+*   IRETURN
   Arrays
     DIM
   Strings
