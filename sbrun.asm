@@ -20,16 +20,16 @@ org:       equ     2000h
            lbr     0ff00h
 #ifdef BIT32
            db      'SBRUN32',0
-           dw      0c000h
-           dw      endrom+0c000h-org
+           dw      0d000h
+           dw      endrom+0d000h-org
            dw      org
            dw      endrom-org
            dw      org
            db      0
 #else
            db      'SBRUN',0
-           dw      0a000h
-           dw      endrom+0a000h-org
+           dw      0b000h
+           dw      endrom+0b000h-org
            dw      org
            dw      endrom-org
            dw      org
@@ -1280,9 +1280,9 @@ start:     mov     r2,07fffh           ; put stack at top of memory
            sep     scall               ; display message
            dw      f_inmsg
 #ifdef BIT32
-           db      'SBRUN32 V0.1',10,13,0
+           db      'SBRUN32 V0.2',10,13,0
 #else
-           db      'SBRUN16 V0.1',10,13,0
+           db      'SBRUN16 V0.2',10,13,0
 #endif
 loop1:     lda     rf                  ; look for first less <= space
            smi     33
@@ -1709,6 +1709,136 @@ op_it:     ldi     pstart.0+1          ; offset to program start
 op_ne:     sep     scall               ; call runtime to negate number
            dw      rt_neg
            lbr     mainlp              ; back to main loop
+
+op_nx:     inc     rd                  ; recover NEXT variable
+           lda     rd
+           plo     r7
+           lda     rd
+           phi     r7                  ; r7 now has variable offset for NEXT var
+
+op_nx1:    lda     rd                  ; get address of loop var from stack
+           plo     r8
+           lda     rd
+           phi     r8                  ; r8 now has loop var offset
+           glo     r7                  ; compare to NEXT var
+           str     r2
+           glo     r8
+           sm
+           lbnz    op_nx2              ; jump if no match
+           ghi     r7
+           str     r2
+           ghi     r8
+           sm
+           lbz     op_nx3              ; jump if correct entry has been found
+op_nx2:    glo     rd                  ; pop off rest of wrong entry
+#ifdef BIT32
+           adi     10
+#endif
+#ifdef BIT16
+           adi     6
+#endif
+           plo     rd
+           ghi     rd
+           adci    0
+           phi     rd
+           lbr     op_nx1              ; loop back to check next entry
+op_nx3:    lda     rd                  ; recover loop back address
+           plo     r8
+           lda     rd
+           phi     r8                  ; R8 now has loop back address if needed
+           ldi     low pstart          ; need address of program
+           plo     rb
+           lda     rb                  ; fetch address
+           phi     rf
+           lda     rb
+           plo     rf                  ; rf now has variable offset
+           glo     r7                  ; add together
+           str     r2
+           glo     rf
+           add
+           plo     r7
+           ghi     r7
+           str     r2
+           ghi     rf
+           adc
+           phi     r7                  ; R7 now points to variable data
+           inc     r7                  ; point to variable lsb
+#ifdef BIT32
+           inc     r7
+           inc     r7
+#endif
+           lda     rd                  ; add step to variable
+           str     r2
+           ldn     r7
+           add
+           str     r7
+           dec     r7
+           lda     rd
+           str     r2
+           ldn     r7
+           adc
+           str     r7                  ; RD now points to end, R7=MSB of variable data
+#ifdef BIT32
+           dec     r7
+           lda     rd
+           str     r2
+           ldn     r7
+           adc
+           str     r7
+           dec     r7
+           lda     rd
+           str     r2
+           ldn     r7
+           adc
+           str     r7                  ; RD now points to end, R7=MSB of variable data
+#endif
+           inc     r7                  ; point to lsb of variable data
+#ifdef BIT32
+           inc     r7
+           inc     r7
+#endif
+           lda     rd                  ; compare loop end to variable value
+           str     r2
+           ldn     r7
+           sd
+           dec     r7
+#ifdef BIT32
+           lda     rd
+           str     r2
+           ldn     r7
+           sdb
+           dec     r7
+           lda     rd
+           str     r2
+           ldn     r7
+           sdb
+           dec     r7
+#endif
+           ldn     rd
+           str     r2
+           ldn     r7
+           sdb
+           shl                         ; shift sign bit to DF
+           lbdf    mainlp              ; to main loop if loop was done
+           mov     rc,r8               ; set pc to loop start address
+#ifdef BIT16
+           glo     rd                  ; keep everything on the stack
+           smi     8
+           plo     rd
+           ghi     rd
+           smbi    0
+           phi     rd
+#endif
+#ifdef BIT32
+           glo     rd                  ; keep everything on the stack
+           smi     12
+           plo     rd
+           ghi     rd
+           smbi    0
+           phi     rd
+#endif
+           lbr     joffset             ; then adjust jump address
+
 
 op_cp:     sep     scall               ; call runtime compare
            dw      rt_cmp
@@ -2594,7 +2724,7 @@ cmdtab:    dw      op_sx               ; 00  SX 0
            dw      op_id               ; 31  ID - Disable interrupts
            dw      op_ir               ; 32  IR - Interrupt return
            dw      op_it               ; 33  IT - Set interrupt line number
-           dw      mainlp              ; 34
+           dw      op_nx               ; 34  NX - Next
            dw      mainlp              ; 35
            dw      mainlp              ; 36
            dw      mainlp              ; 37

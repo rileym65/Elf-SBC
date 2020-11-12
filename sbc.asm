@@ -64,6 +64,7 @@ OP_IE:     equ     030h
 OP_ID:     equ     031h
 OP_IR:     equ     032h
 OP_IT:     equ     033h
+OP_NX:     equ     034h
 OP_JS:     equ     07fh
 OP_J:      equ     080h
 
@@ -101,7 +102,7 @@ start:     ldi     0ffh                ; place the stack at $7FFF
 
            sep     scall               ; display startup message
            dw      f_inmsg
-           db      'Small BASIC Compiler v0.1',10,13
+           db      'Small BASIC Compiler v0.2',10,13
            db      'by Michael H. Riley',10,13,0
            ldi     high ifname         ; point to input filename area
            phi     rf
@@ -852,6 +853,10 @@ process_3: lda     r9                  ; get next token
            lbz     c_ireturn
            smi     1                   ; check for INTR
            lbz     c_intr
+           smi     1                   ; check for FOR
+           lbz     c_for
+           smi     3                   ; check for NEXT
+           lbz     c_next
 
            dec     r9                  ; retrieve base token
            lda     r9
@@ -1197,32 +1202,36 @@ c_let:     lda     r9                  ; get token following LET
            sep     scall               ; output it
            dw      output
 
-;           ldn     r9                  ; get variable name
-;           plo     re                  ; keep a copy
-;           smi     'a'                 ; see if lowercase
-;           lbnf    let_2               ; jump if so
-;           ldn     r9                  ; get variable name
-;           smi     32                  ; convert to UC
-;           plo     re
-;let_2:     glo     re                  ; get variable
-;           smi     040h                ; remove bias
-;           stxd                        ; save it
-;           ldi     OP_LB               ; need to load byte to stack
-;           sep     scall               ; output it
-;           dw      output
-;           irx                         ; recover variable
-;           ldx
-;           shl                         ; multiply by 2
-;           sep     scall               ; check for 32 bits
-;           dw      is32bit
-;           lbnf    let_3               ; jump if not
-;           shl                         ; multiply address by 4
-;let_3:     adi     080h                ; put bias back in
-;           sep     scall               ; and output it
-;           dw      output
-;let_lp:    lda     r9                  ; get byte from variable name
-;           xri     0ffh                ; see if terminator
-;           lbnz    let_lp              ; loop until terminator found
+           lda     r9                  ; get next token
+           smi     086h                ; must be =
+           lbnz    syn_err             ; otherwise syntax error
+           sep     scall               ; evaluate expression
+           dw      expr
+           lbdf    syn_err             ; jump if expression error
+           ldi     OP_SV               ; function to set variable
+           sep     scall               ; output it
+           dw      output
+           lbr     stmtend             ; good compiler
+
+; ****************************
+; *** Process FOR statment ***
+; ****************************
+c_for:     lda     r9                  ; get token following LET
+           smi     TKN_USTR            ; must be unquoted string (variable)
+           lbnz    syn_err             ; otherwise syntax error
+
+           ldi     OP_LW               ; function to load a word
+           sep     scall               ; output it
+           dw      output
+           sep     scall               ; get variable address
+           dw      getvar
+           mov     r7,rf               ; keep a copy of variable address
+           ghi     rf                  ; high byte of address
+           sep     scall               ; output it
+           dw      output
+           glo     rf                  ; low byte of address
+           sep     scall               ; output it
+           dw      output
 
            lda     r9                  ; get next token
            smi     086h                ; must be =
@@ -1231,6 +1240,83 @@ c_let:     lda     r9                  ; get token following LET
            dw      expr
            lbdf    syn_err             ; jump if expression error
            ldi     OP_SV               ; function to set variable
+           sep     scall               ; output it
+           dw      output
+
+           lda     r9                  ; get next token
+           smi     0adh                ; must be TO token
+           lbnz    syn_err             ; otherwise syntax error
+
+           sep     scall               ; evaluate expression
+           dw      expr
+           lbdf    syn_err             ; jump if expression error
+
+           ldi     OP_LN               ; need to push step
+           sep     scall               ; output il code
+           dw      output
+
+           sep     scall               ; check for 32-bits
+           dw      is32bit
+           lbnf    c_for1              ; jump if not
+           ldi     0                   ; store 1 as the step for now
+           sep     scall               ; output high word
+           dw      output
+           ldi     0                   ; store 1 as the step for now
+           sep     scall
+           dw      output
+c_for1:    ldi     0                   ; store 1 as the step for now
+           sep     scall               ; output lsw of step
+           dw      output
+           ldi     1
+           sep     scall
+           dw      output
+
+           ldi     OP_LW               ; need to load address
+           sep     scall
+           dw      output
+           glo     ra                  ; need to setup address
+           adi     5                   ; 5 bytes from here
+           plo     rf
+           ghi     ra
+           adci    0
+           sep     scall               ; output high byte
+           dw      output
+           glo     rf                  ; output low byte
+           sep     scall
+           dw      output
+
+           ldi     OP_LW               ; lastly we need the index variable
+           sep     scall
+           dw      output
+           ghi     r7
+           sep     scall
+           dw      output
+           glo     r7
+           sep     scall
+           dw      output
+
+           lbr     stmtend             ; good compiler
+
+; *****************************
+; *** Process NEXT statment ***
+; *****************************
+c_next:    lda     r9                  ; get token following LET
+           smi     TKN_USTR            ; must be unquoted string (variable)
+           lbnz    syn_err             ; otherwise syntax error
+
+           ldi     OP_LW               ; function to load a word
+           sep     scall               ; output it
+           dw      output
+           sep     scall               ; get variable address
+           dw      getvar
+           ghi     rf                  ; high byte of address
+           sep     scall               ; output it
+           dw      output
+           glo     rf                  ; low byte of address
+           sep     scall               ; output it
+           dw      output
+
+           ldi     OP_NX               ; IL code for NEXT
            sep     scall               ; output it
            dw      output
            lbr     stmtend             ; good compiler
@@ -2171,50 +2257,54 @@ getvardn:   ldi     low varbase  ; need variable base
             sep     sret         ; and return
 
 
-functable: db      ('+'+80h)           ; 0
-           db      ('-'+80h)           ; 1
-           db      ('*'+80h)           ; 2
-           db      ('/'+80h)           ; 3
-           db      ('('+80h)           ; 4
-           db      (')'+80h)           ; 5
-           db      ('='+80h)           ; 6
-           db      '<',('='+80h)       ; 7
-           db      '>',('='+80h)       ; 8
-           db      '<',('>'+80h)       ; 9
-           db      ('<'+80h)           ; 10
-           db      ('>'+80h)           ; 11
-           db      (';'+80h)           ; 12
-           db      (','+80h)           ; 13
-           db      'PRIN',('T'+80h)    ; 14
-           db      'GOT',('O'+80h)     ; 15
-           db      'EN',('D'+80h)      ; 16
-           db      'GOSU',('B'+80h)    ; 17
-           db      'RETUR',('N'+80h)   ; 18
-           db      'LE',('T'+80h)      ; 19
-           db      'I',('F'+80h)       ; 20
-           db      'INPU',('T'+80h)    ; 21
-           db      'RE',('M'+80h)      ; 22
-           db      'THE',('N'+80h)     ; 23
-           db      'POK',('E'+80h)     ; 24
-           db      'DPOK',('E'+80h)    ; 25
-           db      ('&'+80h)           ; 26
-           db      ('|'+80h)           ; 27
-           db      ('^'+80h)           ; 28
-           db      'PEE',('K'+80h)     ; 29
-           db      'DPEE',('K'+80h)    ; 30
-           db      'US',('R'+80h)      ; 31
-           db      'FR',('E'+80h)      ; 32
-           db      'RN',('D'+80h)      ; 33
-           db      'OU',('T'+80h)      ; 34
-           db      'IN',('P'+80h)      ; 35
-           db      'FL',('G'+80h)      ; 36
-           db      (':'+80h)           ; 37
-           db      'PLO',('T'+80h)     ; 38
-           db      'CL',('S'+80h)      ; 39
-           db      'IO',('N'+80h)      ; 40
-           db      'IOF',('F'+80h)     ; 41
-           db      'IRETUR',('N'+80h)  ; 42
-           db      'INT',('R'+80h)     ; 43
+functable: db      ('+'+80h)           ; 0   00  80
+           db      ('-'+80h)           ; 1   01  81
+           db      ('*'+80h)           ; 2   02  82
+           db      ('/'+80h)           ; 3   03  83
+           db      ('('+80h)           ; 4   04  84
+           db      (')'+80h)           ; 5   05  85
+           db      ('='+80h)           ; 6   06  86
+           db      '<',('='+80h)       ; 7   07  87
+           db      '>',('='+80h)       ; 8   08  88
+           db      '<',('>'+80h)       ; 9   09  89
+           db      ('<'+80h)           ; 10  0A  8A
+           db      ('>'+80h)           ; 11  0B  8B
+           db      (';'+80h)           ; 12  0C  8C
+           db      (','+80h)           ; 13  0D  8D
+           db      'PRIN',('T'+80h)    ; 14  0E  8E
+           db      'GOT',('O'+80h)     ; 15  0F  8F
+           db      'EN',('D'+80h)      ; 16  10  90
+           db      'GOSU',('B'+80h)    ; 17  11  91
+           db      'RETUR',('N'+80h)   ; 18  12  92
+           db      'LE',('T'+80h)      ; 19  13  93
+           db      'I',('F'+80h)       ; 20  14  94
+           db      'INPU',('T'+80h)    ; 21  15  95
+           db      'RE',('M'+80h)      ; 22  16  96
+           db      'THE',('N'+80h)     ; 23  17  97
+           db      'POK',('E'+80h)     ; 24  18  98
+           db      'DPOK',('E'+80h)    ; 25  19  99
+           db      ('&'+80h)           ; 26  1A  9A
+           db      ('|'+80h)           ; 27  1B  9B
+           db      ('^'+80h)           ; 28  1C  9C
+           db      'PEE',('K'+80h)     ; 29  1D  9D
+           db      'DPEE',('K'+80h)    ; 30  1E  9E
+           db      'US',('R'+80h)      ; 31  1F  9F
+           db      'FR',('E'+80h)      ; 32  20  A0
+           db      'RN',('D'+80h)      ; 33  21  A1
+           db      'OU',('T'+80h)      ; 34  22  A2
+           db      'IN',('P'+80h)      ; 35  23  A3
+           db      'FL',('G'+80h)      ; 36  24  A4
+           db      (':'+80h)           ; 37  25  A5
+           db      'PLO',('T'+80h)     ; 38  26  A6
+           db      'CL',('S'+80h)      ; 39  27  A7
+           db      'IO',('N'+80h)      ; 40  28  A8
+           db      'IOF',('F'+80h)     ; 41  29  A9
+           db      'IRETUR',('N'+80h)  ; 42  2A  AA
+           db      'INT',('R'+80h)     ; 43  2B  AB
+           db      'FO',('R'+80h)      ; 44  2C  AC
+           db      'T',('O'+80h)       ; 45  2D  AD
+           db      'STE',('P'+80h)     ; 46  2E  AE
+           db      'NEX',('T'+80h)     ; 47  2F  AF
            db      0
 
 rtable1:   db      0ah,80h,80h,12h,0Ah,09h,29h,1Ah,0Ah

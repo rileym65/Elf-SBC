@@ -19,6 +19,8 @@ INTR linenum - Set interrupt routine line number
 ION          - Enable interrupts
 IOFF         - Disable interrupts
 IRETURN      - Return from interrupt 
+FOR var=expr TO expr [STEP expr]
+NEXT [var]
 
 Functions (useable in expressions)
 PEEK(addr)

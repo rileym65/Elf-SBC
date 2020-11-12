@@ -41,6 +41,7 @@ IE      30        Enable interrupts
 ID      31        Disable interrupts
 IR      32        IReturn
 IT      33        Set interrupt routine
+NX      34        Next
 JS      7F        JumpSub
 J       8000-FFFF Jump
 
