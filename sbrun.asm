@@ -15,6 +15,9 @@ include    bios.inc
 include    kernel.inc
 
 org:       equ     2000h
+h_eot:     equ     0
+h_free:    equ     1
+h_used:    equ     2
 
            org     8000h
            lbr     0ff00h
@@ -1264,9 +1267,253 @@ itoan:     ldi     '-'          ; show negative
            lbr     itoa1        ; now convert/show number
 
 
+; ***********************************
+; ***** Allocate heap memory    *****
+; ***** RF - size               *****
+; ***** Returns: RF - address   *****
+; *****          DF=0 - Success *****
+; *****          DF=1 - Failed  *****
+; ***********************************
+alloc:     ldi     low heap     ; point to heap address
+           plo     rb           ; set into data pointer
+           lda     rb           ; retrieve heap start address
+           phi     r7           ; r7 will be heap pointer
+           lda     rb
+           plo     r7
+alloc_lp:  ldn     r7           ; retrieve allocation cell
+           lbz     alloc_nw     ; jump if eot is found
+           smi     1            ; check for free block
+           lbz     alloc_ok     ; free block found
+           inc     r7           ; move over to block size
+alloc_nxt: lda     r7           ; lsb of block size
+           plo     r8
+           lda     r7           ; msb of block size
+           phi     r8
+           glo     r7           ; add size to position
+           str     r2
+           glo     r8
+           add
+           plo     r7
+           ghi     r7
+           str     r2
+           ghi     r8
+           adc
+           phi     r7
+           lbr     alloc_lp     ; check next block
+alloc_ok:  inc     r7           ; move over to block size
+           lda     r7           ; lsb of block size
+           plo     r8
+           lda     r7           ; msb of block size
+           phi     r8
+           glo     rf           ; see if it fits
+           str     r2
+           glo     r8
+           sm
+           str     r8 
+           ghi     rf
+           str     r2
+           ghi     r8
+           smb
+           str     r8           ; r8 now has bytes after allocation
+           lbdf    alloc_ys     ; jump if requested size fits in block
+           dec     r7           ; point back to size
+           dec     r7
+           lbr     alloc_nxt    ; and move to next block
+alloc_ys:  dec     r7           ; move back to allocation cell
+           dec     r7
+           dec     r7
+           ldi     h_used       ; mark as used
+           str     r7
+           ghi     r8           ; see if more than 16 bytes are left over
+           lbnz    alloc_sp     ; split if so
+           glo     r8
+           ani     0fh
+           lbnz    alloc_sp
+           mov     rf,r7        ; get adddress
+           inc     rf           ; point to actual memory
+           inc     rf
+           inc     rf
+alloc_gd:  ldi     0            ; indicate success
+           shr                  ; shift into DF
+           sep     sret         ; and return
+alloc_sp:  inc     r7           ; point to size
+           glo     rf           ; write size of block
+           str     r7
+           inc     r7
+           ghi     rf
+           str     r7
+           inc     r7
+           mov     rf,r7        ; address of memory
+           glo     r7           ; add size to r7
+           str     r2
+           glo     rf
+           add
+           plo     r7
+           ghi     r7
+           str     r2
+           ghi     rf
+           adc
+           str     r7           ; r7 now points to new cell header
+           ldi     h_free       ; mark as free
+           str     r7
+           inc     r7           ; point to size
+           dec     r8           ; remove 3 bytes from free for header
+           dec     r8
+           dec     r8
+           glo     r8           ; now save size of new block
+           str     r7
+           inc     r7
+           ghi     r8
+           str     r7
+           lbr     alloc_gd     ; mark as success and return
+alloc_nw:  glo     rf           ; find where allocation would end
+           str     r2
+           glo     r7
+           add
+           plo     r8
+           ghi     rf
+           str     r2
+           ghi     r7
+           adc
+           inc     r8           ; 3 bytes for block header
+           inc     r8
+           inc     r8
+           phi     r8           ; R8 now has where allocation would end
+           glo     rd           ; compare against stack pointer
+           str     r2
+           glo     r8
+           sm
+           ghi     rd
+           str     r2
+           ghi     r8
+           smb
+           lbdf    alloc_no     ; jump if alloc end exceeds stack
+           ldi     h_used       ; need to mark block as used
+           str     r7
+           inc     r7
+           glo     rf           ; store size
+           str     r7
+           inc     r7
+           ghi     rf
+           str     r7
+           inc     r7
+           mov     rf,r7        ; move allocated address to rf
+           ldi     h_eot        ; need to mark end of table
+           str     r8           ; store it
+           lbr     alloc_gd     ; indicate success and return
+alloc_no:  ldi     1            ; signal failed
+           shr                  ; shift into DF
+           sep     sret         ; and return
 
+; ***********************************
+; ***** Allocate heap memory    *****
+; ***** RF - size               *****
+; ***** Returns: RF - address   *****
+; *****          DF=0 - Success *****
+; *****          DF=1 - Failed  *****
+; ***********************************
+halloc:    push    rf           ; save size
+           sep     scall        ; attempt to allocate
+           dw      alloc
+           lbnf    halloc_ys    ; jump if successful
+           sep     scall        ; call garbage collector
+           dw      hgc
+           pop     rf           ; then try again to allocate
+           sep     scall
+           dw      alloc
+           sep     sret         ; return result
+halloc_ys: irx                  ; remove count from stack
+           irx
+           sep     sret         ; return to caller
 
+; **********************************
+; ***** Deallocate heap memory *****
+; ***** RF - address           *****
+; **********************************
+hfree:     dec     rf           ; point to allocation type cell
+           dec     rf
+           dec     rf
+           ldi     h_free       ; mark as free
+           str     rf
+           sep     sret         ; and return to caller
 
+; *******************************************
+; ***** Attempt to garbage collect heap *****
+; *******************************************
+hgc:       ldi     low heap     ; point to heap address
+           plo     rb           ; set into data pointer
+           lda     rb           ; retrieve heap start address
+           phi     r7           ; r7 will be heap pointer
+           lda     rb
+           plo     r7
+hgclp:     lda     r7           ; get allocation cell
+           lbz     hgc_1        ; jump if not end of table
+           sep     sret         ; return to caller if eot found
+hgc_1:     smi     1            ; is block free
+           lbz     hgc_2        ; jump if free block
+           lda     r7           ; get block size
+           plo     r8
+           lda     r7
+           phi     r8
+           glo     r7           ; add block size to position
+           str     r2
+           glo     r8
+           add
+           plo     r7
+           ghi     r7
+           str     r2
+           ghi     r8
+           adc
+           phi     r7           ; r7 now points to next allocation cell
+           lbr     hgclp        ; check next cell
+hgc_2:     lda     r7           ; get size
+           plo     r8
+           lda     r7
+           phi     r8           ; r8 has size
+           glo     r7           ; add position to size
+           str     r2
+           glo     r8
+           add
+           plo     r8
+           ghi     r7
+           str     r2
+           ghi     r8
+           adc
+           phi     r8           ; r8 now points to next allocation cell
+           ldn     r8           ; get cell type
+           smi     1            ; need to see if it is a free cell
+           lbz     hgc_3        ; jump if so
+           mov     r7,r8        ; point to next cell
+           lbr     hgclp        ; and check it
+hgc_3:     inc     r8           ; point to size
+           lda     r8           ; get size of second block
+           plo     rf
+           lda     r8
+           phi     rf
+           inc     rf           ; +3 bytes for header that is now free memory
+           inc     rf
+           inc     rf           ; rf now has size of block to be merged in
+           dec     r7           ; get first block size again
+           ldn     r7
+           phi     r8
+           dec     r7
+           ldn     r7
+           plo     r8           ; r8 now has fist block size, r7->lsb of size
+           glo     rf           ; add 2nd block size to first
+           str     r2
+           glo     r8
+           add
+           str     r7           ; store into block size
+           inc     r7
+           ghi     rf
+           str     r2
+           ghi     r8
+           adc
+           str     r7           ; first block size is now updated
+           dec     r7           ; point back to allocation cell
+           dec     r7
+           lbr     hgclp        ; and recheck for contiguous free
+           
 
 ; ******************************************
 ; ***** Runtime library code ends here *****
@@ -2951,5 +3198,6 @@ mend:      equ     $+2
 pend:      equ     $+4
 intline:   equ     $+6
 intflag:   equ     $+7
+heap:      equ     $+8
 lfsr:      equ     $+026h
 
