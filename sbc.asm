@@ -65,6 +65,8 @@ OP_ID:     equ     031h
 OP_IR:     equ     032h
 OP_IT:     equ     033h
 OP_NX:     equ     034h
+OP_OJ:     equ     035h
+OP_OS:     equ     036h
 OP_JS:     equ     07fh
 OP_J:      equ     080h
 
@@ -857,6 +859,8 @@ process_3: lda     r9                  ; get next token
            lbz     c_for
            smi     3                   ; check for NEXT
            lbz     c_next
+           smi     1                   ; check for ON
+           lbz     c_on
 
            dec     r9                  ; retrieve base token
            lda     r9
@@ -1488,6 +1492,68 @@ c_cgotoct: sep     scall               ; output it
            lbr     stmtend             ; check proper end
 c_cgoto_j: ldi     OP_TJ               ; opcode for table jump
            lbr     c_cgotoct           ; continue
+
+c_on:      sep     scall               ; process expression
+           dw      expr
+           lbdf    syn_err             ; jump if error in expression
+           ldn     r9                  ; get next token
+           smi     08fh                ; check for Goto
+           lbz     c_ongoto            ; jump if goto
+           ldn     r9                  ; recover command
+           smi     091h                ; check for Gosub
+           lbz     c_ongosub           ; jump if so
+           lbr     syn_err             ; otherwise syntax error
+c_ongoto:  ldi     OP_OJ               ; token for ON GOTO
+           nlbr                        ; skip next two bytes
+c_ongosub: ldi     OP_OS               ; token for ON GOSUB
+           sep     scall               ; output it
+           dw      output
+           inc     r9                  ; move to next token
+c_on_lp:   lda     r9                  ; get next token
+           smi     TKN_NUM             ; must be a number
+           lbnz    syn_err             ; jump if not a number
+           lda     r9                  ; retrieve line number
+           phi     rf
+           lda     r9
+           plo     rf
+           sep     scall               ; check for 32 bits
+           dw      is32bit
+           lbnf    c_on_1              ; jump if not
+           lda     r9                  ; retrieve line number
+           phi     rf
+           lda     r9
+           plo     rf
+c_on_1:    ldi     low pass            ; need to check pass
+           plo     rb
+           ldn     rb
+           lbnz    c_on_2              ; jump if second pass
+           ldi     0                   ; otherwise just output 2 zeroes
+           sep     scall
+           dw      output
+           sep     scall
+           dw      output
+           lbr     c_on_3              ; and continue
+c_on_2:    sep     scall               ; retrieve line address
+           dw      findline
+           ghi     rf                  ; output line number
+           sep     scall
+           dw      output
+           glo     rf
+           sep     scall
+           dw      output
+c_on_3:    lda     r9                  ; get next token
+           plo     r7                  ; save it
+           smi     08dh                ; check for comma
+           lbz     c_on_lp             ; process next line number
+           dec     r9                  ; backup pointer
+           ldi     0ffh                ; mark end of line numbers
+           sep     scall
+           dw      output
+           ldi     0ffh                ; mark end of line numbers
+           sep     scall
+           dw      output
+           lbr     stmtend             ; done with statement
+
 
 ; *******************************
 ; *** Process PRINT statement ***
@@ -2305,6 +2371,7 @@ functable: db      ('+'+80h)           ; 0   00  80
            db      'T',('O'+80h)       ; 45  2D  AD
            db      'STE',('P'+80h)     ; 46  2E  AE
            db      'NEX',('T'+80h)     ; 47  2F  AF
+           db      'O',('N'+80h)       ; 48  30  B0
            db      0
 
 rtable1:   db      0ah,80h,80h,12h,0Ah,09h,29h,1Ah,0Ah

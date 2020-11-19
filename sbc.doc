@@ -21,6 +21,8 @@ IOFF         - Disable interrupts
 IRETURN      - Return from interrupt 
 FOR var=expr TO expr [STEP expr]
 NEXT [var]
+ON expr GOTO line,line,...
+ON expr GOSUB line,line,...
 
 Functions (useable in expressions)
 PEEK(addr)

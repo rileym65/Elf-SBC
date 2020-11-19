@@ -1870,6 +1870,94 @@ op_pc:     lda     rc                  ; get next program byte
            lbnf    op_pc               ; jump if more to print
            lbr     mainlp              ; otherwise back to main loop
 
+op_oj:     inc     rd                  ; retrieve expression value
+           lda     rd                  ; retrieve expression value
+           plo     rf
+           ldn     rd
+           phi     rf
+#ifdef BIT32
+           inc     rd                  ; move past high word
+           inc     rd
+#endif
+           glo     rf                  ; check for zero
+           lbz     op_oj_dn            ; jump if so
+op_oj_lp:  dec     rf                  ; decrement value
+           glo     rf                  ; get lsb
+           lbz     op_oj_f             ; jump if found
+           inc     rc                  ; move past current line number
+           inc     rc
+           ldn     rc                  ; need to see if at end of list
+           smi     0ffh
+           lbnz    op_oj_lp            ; loop back if not
+           inc     rc                  ; need next byte
+           ldn     rc                  ; retrieve it
+           dec     rc                  ; point back to first byte
+           smi     0ffh                ; check for end token
+           lbnz    op_oj_lp            ; loop back if not
+           inc     rc                  ; move past end of list
+           inc     rc
+           lbr     mainlp              ; then back to main loop
+op_oj_f:   lda     rc                  ; get line number for jump
+           phi     rf
+           lda     rc
+           plo     rc
+           ghi     rf
+           phi     rc
+           lbr     joffset             ; offset from program start
+op_oj_dn:  lda     rc                  ; get next byte
+           smi     0ffh                ; looking for terminator
+           lbnz    op_oj_dn            ; loop if not
+op_oj_d2:  lda     rc                  ; need 2 terminators
+           smi     0ffh
+           lbnz    op_oj_d2
+           lbr     mainlp              ; then back to main loop
+
+op_os:     inc     rd                  ; retrieve expression value
+           lda     rd                  ; retrieve expression value
+           plo     rf
+           ldn     rd
+           phi     rf
+#ifdef BIT32
+           inc     rd                  ; move past high word
+           inc     rd
+#endif
+           glo     rf                  ; check for zero
+           lbz     op_os_dn            ; jump if so
+op_os_lp:  dec     rf                  ; decrement value
+           glo     rf                  ; get lsb
+           lbz     op_os_f             ; jump if found
+           inc     rc                  ; move past current line number
+           inc     rc
+           ldn     rc                  ; need to see if at end of list
+           smi     0ffh
+           lbnz    op_os_lp            ; loop back if not
+           inc     rc                  ; need next byte
+           ldn     rc                  ; retrieve it
+           dec     rc                  ; point back to first byte
+           smi     0ffh                ; check for end token
+           lbnz    op_os_lp            ; loop back if not
+           inc     rc                  ; move past end of list
+           inc     rc
+           lbr     mainlp              ; then back to main loop
+op_os_f:   lda     rc                  ; get line number for jump
+           phi     rf
+           lda     rc
+           plo     rf
+op_os_f1:  lda     rc                  ; need to find terminator
+           smi     0ffh
+           lbnz    op_os_f1
+op_os_f2:  lda     rc
+           smi     0ffh
+           lbnz    op_os_f2
+           lbr     op_js2              ; act like GOSUB from this point
+op_os_dn:  lda     rc                  ; get next byte
+           smi     0ffh                ; looking for terminator
+           lbnz    op_os_dn            ; loop if not
+op_os_d2:  lda     rc                  ; need 2 terminators
+           smi     0ffh
+           lbnz    op_os_d2
+           lbr     mainlp              ; then back to main loop
+
 joffset:   ldi     pstart.0+1          ; offset to program start
            plo     rb
            glo     rc                  ; get low of pc
@@ -1896,7 +1984,7 @@ op_js:     lda     rc                  ; get msb of jump
            phi     rf                  ; save it
            lda     rc                  ; get next byte from program
            plo     rf                  ; put into low of pc
-           ghi     rc                  ; save current pc
+op_js2:    ghi     rc                  ; save current pc
            str     rd
            dec     rd
            glo     rc
@@ -2972,8 +3060,8 @@ cmdtab:    dw      op_sx               ; 00  SX 0
            dw      op_ir               ; 32  IR - Interrupt return
            dw      op_it               ; 33  IT - Set interrupt line number
            dw      op_nx               ; 34  NX - Next
-           dw      mainlp              ; 35
-           dw      mainlp              ; 36
+           dw      op_oj               ; 35  OJ - ON GOTO
+           dw      op_os               ; 36  OS - ON GOSUB
            dw      mainlp              ; 37
            dw      mainlp              ; 38
            dw      mainlp              ; 39
