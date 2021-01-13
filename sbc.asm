@@ -74,7 +74,7 @@ org:       equ     2000h
 
            org     8000h
            lbr     0ff00h
-           db      'SBC',0
+           db      'sbc',0
            dw      9000h
            dw      endrom+9000h-org
            dw      org
@@ -84,7 +84,11 @@ org:       equ     2000h
 
            org     2000h
            br      start
+       
 include    date.inc
+include    build.inc
+           db      'Written by Michael H. Riley',0
+
 pass:      db      0
 lineaddr:  dw      0
 linenum:   dw      0
@@ -97,10 +101,15 @@ varbase:   dw      0                   ; Base address for variables.  LSB first
 vars:      dw      0                   ; pointer to variable table. LSB first
 
 
-start:     ldi     0ffh                ; place the stack at $7FFF
-           plo     r2
-           ldi     07fh
+start:     mov     rf,0400h            ; check kernel build
+           lda     rf
+           smi     0
+     
+           mov     rf,0442h            ; point to high memory pointer
+           lda     rf                  ; put stack at top of memory
            phi     r2
+           lda     rf
+           plo     r2
 
            sep     scall               ; display startup message
            dw      f_inmsg
@@ -143,11 +152,12 @@ start:     ldi     0ffh                ; place the stack at $7FFF
            str     rb
            ldi     low vars            ; point to variable table pointer
            plo     rb
-           ldi     0ffh                ; put variable table at $7EFF
+           ldi     0ffh                ; put variable table 1 page below the stack
            str     rb
            plo     r7                  ; set r7 to varaible table
            inc     rb
-           ldi     07eh
+           ghi     r2
+           smi     1
            str     rb
            phi     r7
            ldi     0                   ; need to mark end of table
@@ -203,7 +213,7 @@ fnamelp:   lda     ra                  ; get byte from specified filename
            dec     rf                  ; move to terminator
            sep     scall               ; append .bas extension
            dw      append
-           db      '.BAS',0
+           db      '.bas',0
            str     r9                  ; to output filename
            ldi     high ifname         ; point to input filename
            phi     rf
@@ -376,7 +386,10 @@ compile:   ldi     high buffer         ; point to buffer
            sep     sret                ; return to caller
            
 
-compgo:    glo     rd                  ; save file descriptor
+compgo:    mov     rf,buffer           ; convert input to uppercase
+           sep     scall
+           dw      touc
+           glo     rd                  ; save file descriptor
            stxd
            ghi     rd
            stxd
@@ -2321,6 +2334,32 @@ getvardn:   ldi     low varbase  ; need variable base
             pop     rc           ; recover consumed registers
             pop     r7
             sep     sret         ; and return
+
+; **********************************************************
+; ***** Convert string to uppercase, honor quoted text *****
+; **********************************************************
+touc:      ldn     rf                  ; check for quote
+           smi     022h
+           lbz     touc_qt             ; jump if quote
+           ldn     rf                  ; get byte from string
+           lbz     touc_dn             ; jump if done
+           smi     'a'                 ; check if below lc
+           lbnf    touc_nxt            ; jump if so
+           smi     27                  ; check upper rage
+           lbdf    touc_nxt            ; jump if above lc
+           ldn     rf                  ; otherwise convert character to lc
+           smi     32
+           str     rf
+touc_nxt:  inc     rf                  ; point to next character
+           lbr     touc                ; loop to check rest of string
+touc_dn:   sep     sret                ; return to caller
+touc_qt:   inc     rf                  ; move past quote
+touc_qlp:  lda     rf                  ; get next character
+           lbz     touc_dn             ; exit if terminator found
+           smi     022h                ; check for quote charater
+           lbz     touc                ; back to main loop if quote
+           lbr     touc_qlp            ; otherwise keep looking
+
 
 
 functable: db      ('+'+80h)           ; 0   00  80
