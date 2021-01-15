@@ -1222,7 +1222,7 @@ ioalp:     lda     rf
            ldn     r2           ; recover character
 itoa2:     adi     030h
            sep     scall
-           dw      f_type
+           dw      o_type
 itoa3:     dec     r8
            glo     r8
            lbnz    ioalp
@@ -1244,7 +1244,7 @@ itoaz:     ghi     r8           ; see if leading have been used up
            lbr     itoa3        ; and loop for next character
 itoan:     ldi     '-'          ; show negative
            sep     scall
-           dw      f_type
+           dw      o_type
 #ifdef BIT32
            glo     r8           ; 2s compliment
            xri     0ffh
@@ -1532,7 +1532,7 @@ start:     mov     rf,0442h            ; point to high memory pointer
            glo     ra
            plo     rf
            sep     scall               ; display message
-           dw      f_inmsg
+           dw      o_inmsg
 #ifdef BIT32
            db      'SBRUN32 V0.2',10,13,0
 #else
@@ -1714,7 +1714,7 @@ wrongver:  sep     scall               ; close the file
            dw      o_close
            mov     rf,vermsg           ; point to error messge
            sep     scall               ; display it
-           dw      f_msg
+           dw      o_msg
            lbr     o_wrmboot           ; and return to Elf/OS
 
 op_lb:     lda     rc                  ; retrieve next program byte
@@ -1877,20 +1877,20 @@ op_pn:     sep     scall               ; all runtime ITOA
            lbr     mainlp              ; all done
 
 op_nl:     sep     scall               ; print new line
-           dw      f_inmsg
+           dw      o_inmsg
            db      10,13,0
            lbr     mainlp              ; then back to main loop
 
 op_pt:     ldi     9                   ; tab character
            sep     scall               ; display it
-           dw      f_type
+           dw      o_type
            lbr     mainlp              ; then back to main
 
 op_pc:     lda     rc                  ; get next program byte
            plo     rf                  ; save it
            ani     07fh                ; strip high bit
            sep     scall               ; display it
-           dw      f_type
+           dw      o_type
            glo     rf                  ; recover byte
            shl                         ; shift high bit to df
            lbnf    op_pc               ; jump if more to print
@@ -2440,12 +2440,12 @@ op_fg4:    plo     re                  ; save for a moment
            lbr     mainlp              ; back to main loop
 
 op_gl:     sep     scall               ; display ?
-           dw      f_inmsg
+           dw      o_inmsg
            db      '? ',0
            mov     rf,buffer           ; point to input buffer
            push    rc                  ; rc gets clobbeted by f_input
            sep     scall               ; get input from user
-           dw      f_input
+           dw      o_input
            pop     rc
            mov     rf,buffer           ; point to input text
            sep     scall               ; Convert ascii to binary
@@ -2465,7 +2465,7 @@ op_gl:     sep     scall               ; display ?
            dec     rd
 #endif
            sep     scall
-           dw      f_inmsg
+           dw      o_inmsg
            db      10,13,0
            lbr     mainlp              ; back to main loop
 
@@ -2493,7 +2493,7 @@ op_pl:     inc     rd                  ; retrieve y value from stack
 
 op_cl:     ldi     00ch                ; form feed
            sep     scall               ; display it
-           dw      f_type
+           dw      o_type
            lbr     mainlp              ; then back to main loop
 
 op_sx:     ani     07h                 ; only 0-7 allowed
@@ -2541,7 +2541,7 @@ op_tjlp:   lda     r7                  ; get table line msb
            smi     0ffh                ; check it
            lbnz    op_tj1              ; jump if not
            sep     scall               ; print error
-           dw      f_inmsg
+           dw      o_inmsg
            db      'Invalid jump. Terminating',10,13,0
            lbr     o_wrmboot           ; return to Elf/OS
 op_tj1:    ldn     r7                  ; get lsb
@@ -2647,34 +2647,34 @@ wtoadn:    glo     rf                ; get low character
 ; *********************************************
 gotoxy:    ldi     27                ; escape character
            sep     scall             ; write it
-           dw      f_type
+           dw      o_type
            ldi     '['               ; square bracket
            sep     scall             ; write it
-           dw      f_type
+           dw      o_type
            glo     rd                ; get x
            sep     scall             ; convert to ascii
            dw      wtoa
            ghi     rf                ; high character
            sep     scall             ; write it
-           dw      f_type
+           dw      o_type
            glo     rf                ; low character
            sep     scall             ; write it
-           dw      f_type
+           dw      o_type
            ldi     ';'               ; need separator
            sep     scall             ; write it
-           dw      f_type
+           dw      o_type
            ghi     rd                ; get y
            sep     scall             ; convert to ascii
            dw      wtoa
            ghi     rf                ; high character
            sep     scall             ; write it
-           dw      f_type
+           dw      o_type
            glo     rf                ; low character
            sep     scall             ; write it
-           dw      f_type
+           dw      o_type
            ldi     'H'               ; need terminator for position
            sep     scall             ; write it
-           dw      f_type
+           dw      o_type
            sep     sret              ; return to caller
 
 

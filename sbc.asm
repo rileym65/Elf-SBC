@@ -112,7 +112,7 @@ start:     mov     rf,0400h            ; check kernel build
            plo     r2
 
            sep     scall               ; display startup message
-           dw      f_inmsg
+           dw      o_inmsg
            db      'Small BASIC Compiler v0.2',10,13
            db      'by Michael H. Riley',10,13,0
            ldi     high ifname         ; point to input filename area
@@ -246,7 +246,7 @@ openerr:   ldi     high fileerr        ; point to error message
            dw      o_msg
            lbr     o_wrmboot           ; and return to caller
 opened:    sep     scall               ; print message
-           dw      f_inmsg
+           dw      o_inmsg
            db      'Pass 1.',10,13,0
            ldi     low pass            ; point to pass variable
            plo     rb
@@ -315,7 +315,7 @@ szgo:      sep     scall
            ghi     ra
            str     rb
            sep     scall               ; print message
-           dw      f_inmsg
+           dw      o_inmsg
            db      'Pass 2.',10,13,0
            ldi     high ifname         ; point to input filename
            phi     rf
