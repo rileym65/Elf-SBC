@@ -38,6 +38,12 @@ sbrun32.prg: sbrun.asm bios.inc
 	mv x.prg sbrun32.prg
 	tail -6 sbrun32.lst
 
+hex: $(PROJECT).rom
+	cat $(PROJECT).rom | ../tointel.pl > $(PROJECT).hex
+
+install: $(PROJECT).rom
+	cp $(PROJECT).rom ../../$(PROJECT).prg
+	cd ../.. ; ./run -R $(PROJECT).prg
 
 clean:
 	-rm sbc.prg
